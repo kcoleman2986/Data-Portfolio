@@ -1,0 +1,346 @@
+---
+title: "Probability and Statistics"
+subtitle: "Final Project Assignment (55 points)"
+format:
+  html:
+    self-contained: true
+editor: visual
+---
+
+## Introduction
+
+This final project draws upon the material covered throughout the course.
+
+Fill in your response after each question, including R code to show your work as appropriate.
+
+## Part 1: Background Information
+
+1.  State the research question: What is the relationship between which two variables? (2 points)
+
+    Do ethnic groups, living in the US, and their respective US citizenship status affect the rate of US naturalization for that respective ethnic group?
+
+2.  Write a short paragraph that provides some context for the research question. Why is this an interesting relationship to study? Why do you expect there to be a relationship? (2 points)
+
+    I selected a dataset from the US Census Bureau that shows citizenship estimates from 2021. I find this topic interesting because it could be used to help predict which ethnic groups are likely to assimilate into the US. I'm assuming that US citizenship is true assimilation for the sake of this topic. I expect there to be a relationship because I believe that certain ethnic groups are more likely to become US citizens due to either individuals wanting to return to their homeland or possibly not wanting to fully assimilate into US society.
+
+3.  Cite the dataset you'll be using (Chicago style): (2 points)
+
+    United States Census Bureau. (2021). Census estimate 2021, B05001-NATIVITY AND CITIZENSHIP STATUS IN THE UNITED STATES. Retrieved 7/17/2023 from https://data.census.gov/mapq=+NATIVITY+AND+CITIZENSHIP+STATUS+IN+THE+UNITED+STATES&tid=ACSDT1Y2021.B05001&layer=VT_2021_040_00_PP_D1&mode=thematic&loc=39.3021,-96.6371,z3.3841
+
+4.  Complete Table 1. Only include those variables you'll be using in your analysis. Adjust the number of rows as necessary. (2 points)
+
++------------------------------+-----------------------------------------------------------------------------+
+| Variable                     | Definition                                                                  |
++==============================+=============================================================================+
+| Population_Group             | Ethnicity/Nationality Label                                                 |
++------------------------------+-----------------------------------------------------------------------------+
+| Number_Ethnic_People         | Total number of people in a ethnicity/nationality group in the US           |
++------------------------------+-----------------------------------------------------------------------------+
+| Total_US_Citizen_Born_US     | Total number of people in a ethnic group who are US citizens born in the US |
++------------------------------+-----------------------------------------------------------------------------+
+| Total_US_Citizen_Naturalized | Total number of people in a ethnic group who are naturalized US citizens    |
++------------------------------+-----------------------------------------------------------------------------+
+| Total_Not_US_Citizen         | Total number of people in a ethnic group who are not US citizens            |
++------------------------------+-----------------------------------------------------------------------------+
+
+: Table 1: Variable Definitions
+
+## Part 2: Descriptive Information
+
+5.  What is the unit of analysis? (2 points)
+
+    individuals
+
+6.  Complete the table of summary statistics. Add or delete rows as necessary. (4 points)
+
+::: callout-note
+## NOTE:
+
+If you are examining unordered categorical variables (e.g., race, favorite color) please feel free to modify the table. For example, for an unordered categorical variable, you could include the mode and number of observations, or you could include the percentage of observations in each category.
+:::
+
++------------------------------+---------+------------+--------+--------------------+--------+----------+
+| Variable                     | Minimum | Maximum    | Mean   | Standard Deviation | *N*    | Mode     |
++==============================+=========+============+========+====================+========+==========+
+| Population_Group             | N/A     | N/A        | N/A    | N/A                | 121    | 'German' |
++------------------------------+---------+------------+--------+--------------------+--------+----------+
+| Number_Ethnic_People         | 7,000   | 42,298,512 | 61,356 | 848,718            | 5,419  | 7,742    |
++------------------------------+---------+------------+--------+--------------------+--------+----------+
+| Total_US_Citizen_Born_US     | 930     | 41,328,432 | 56,539 | 825,704            | 5,502  | 7,496    |
++------------------------------+---------+------------+--------+--------------------+--------+----------+
+| Total_US_Citizen_Naturalized | 0       | 1,069,239  | 2,566  | 24,860             | 1,809  | 0        |
++------------------------------+---------+------------+--------+--------------------+--------+----------+
+| Total_Not_US_Citizen         | 0       | 789,994    | 1,600  | 16,220             | 1,507  | 0        |
++------------------------------+---------+------------+--------+--------------------+--------+----------+
+
+: Table 2: Summary Statistics
+
+7.  Create one visualization of the dependent variable (e.g. bar graph, line graph, boxplot, histogram). Be sure the visualization includes all the critical components, including a title, meaningful axes labels and any other useful labels. (4 points)
+
+n(Number_Ethnic_People)
+
+```{r}
+library(tidyverse)
+library(lubridate)
+
+# 6
+us_ethnicity_df <- read.csv("US_ancestory_df.csv", stringsAsFactors = FALSE)
+
+
+us_ethnicity_df <- us_ethnicity_df %>% select ( POPGROUP_LABEL, B05001_001E, B05001_002E, B05001_005E, B05001_006E)
+
+
+us_ethnicity <- us_ethnicity_df %>% rename( Population_Groups = POPGROUP_LABEL,Number_Ethnic_People = B05001_001E, Total_US_Citizen_Born_US = B05001_002E, Total_US_Citizen_Naturalized = B05001_005E, Total_Not_US_Citizen = B05001_006E) 
+
+us_ethnicity_mutated <- us_ethnicity %>% slice(-1) 
+
+us_ethnicity_character <- us_ethnicity_mutated %>% select( Population_Groups)
+
+us_ethnicity_mutated_1 <- unlist(us_ethnicity_mutated$Total_US_Citizen_Naturalized)
+us_ethnicity_mutated_1 <- as.numeric(us_ethnicity_mutated_1)
+us_ethnicity_mutated_1 <- as.data.frame(us_ethnicity_mutated_1)
+us_ethnicity_mutated_1 <- us_ethnicity_mutated_1 %>% rename(Total_US_Citizen_Naturalized = us_ethnicity_mutated_1)
+
+us_ethnicity_mutated_2 <- unlist(us_ethnicity_mutated$Total_US_Citizen_Born_US)
+us_ethnicity_mutated_2 <- as.numeric(us_ethnicity_mutated_2)
+us_ethnicity_mutated_2 <- as.data.frame(us_ethnicity_mutated_2)
+us_ethnicity_mutated_2 <- us_ethnicity_mutated_2 %>% rename(Total_US_Citizen_Born_US = us_ethnicity_mutated_2)
+
+us_ethnicity_mutated_3 <- unlist(us_ethnicity_mutated$Total_Not_US_Citizen)
+us_ethnicity_mutated_3 <- as.numeric(us_ethnicity_mutated_3)
+us_ethnicity_mutated_3 <- as.data.frame(us_ethnicity_mutated_3)
+us_ethnicity_mutated_3 <- us_ethnicity_mutated_3 %>% rename(Total_Not_US_Citizen = us_ethnicity_mutated_3)
+
+us_ethnicity_mutated_4 <- unlist(us_ethnicity_mutated$Number_Ethnic_People)
+us_ethnicity_mutated_4 <- as.numeric(us_ethnicity_mutated_4)
+us_ethnicity_mutated_4 <- as.data.frame(us_ethnicity_mutated_4)
+us_ethnicity_mutated_4 <- us_ethnicity_mutated_4 %>% rename(Number_Ethnic_People = us_ethnicity_mutated_4)
+
+
+us_ethnicity_combined <- cbind(us_ethnicity_character, us_ethnicity_mutated_1, us_ethnicity_mutated_2, us_ethnicity_mutated_3, us_ethnicity_mutated_4)
+
+                                                   
+print(us_ethnicity_combined)
+
+
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+
+us_ethnicity_combined
+
+mean(us_ethnicity_combined$Total_US_Citizen_Naturalized, na.rm = TRUE)
+sd(us_ethnicity_combined$Total_US_Citizen_Naturalized, na.rm = TRUE)
+range(us_ethnicity_combined$Total_US_Citizen_Naturalized, na.rm = TRUE)
+us_ethnicity_naturalized_mode<- getmode(us_ethnicity_combined$Total_US_Citizen_Naturalized)
+us_ethnicity_combined %>% count(Total_US_Citizen_Naturalized)
+
+
+mean(us_ethnicity_combined$Total_US_Citizen_Born_US, na.rm = TRUE)
+sd(us_ethnicity_combined$Total_US_Citizen_Born_US, na.rm = TRUE)
+range(us_ethnicity_combined$Total_US_Citizen_Born_US, na.rm = TRUE)
+us_ethnicity_combined_Total_US_Citizen_Born_US_Mode <- getmode(us_ethnicity_combined$Total_US_Citizen_Born_US)
+us_ethnicity_combined %>% count(Total_US_Citizen_Born_US, na.rm = TRUE)
+
+
+mean(us_ethnicity_combined$Total_Not_US_Citizen, na.rm = TRUE)
+sd(us_ethnicity_combined$Total_Not_US_Citizen, na.rm = TRUE)
+range(us_ethnicity_combined$Total_Not_US_Citizen, na.rm = TRUE)
+us_ethnicity_combined_Total_Not_US_Citizen_Mode <- getmode(us_ethnicity_combined$Total_Not_US_Citizen)
+us_ethnicity_combined %>% count(Total_Not_US_Citizen, na.rm = TRUE)
+
+mean(us_ethnicity_combined$Number_Ethnic_People, na.rm = TRUE)
+sd(us_ethnicity_combined$Number_Ethnic_People, na.rm = TRUE)
+range(us_ethnicity_combined$Number_Ethnic_People, na.rm = TRUE)
+us_ethnicity_combined_Number_Ethnic_People <- getmode(us_ethnicity_combined$Number_Ethnic_People)
+us_ethnicity_combined %>% count(Number_Ethnic_People, na.rm = TRUE)
+
+
+
+
+
+
+
+getmode(us_ethnicity_combined$Population_Groups)
+us_ethnicity_combined %>% count(Population_Groups, na.rm = TRUE)
+################################################################################
+
+#7
+
+
+us_ethnicity_comparison <- us_ethnicity_combined %>% select(Total_US_Citizen_Naturalized, Population_Groups)
+
+
+
+us_ethnicity_comparison <- arrange(us_ethnicity_comparison, desc(Total_US_Citizen_Naturalized))
+
+us_ethnicity_comparison <- us_ethnicity_comparison[1:10,]
+
+
+
+options(scipen = 999)
+ggplot(us_ethnicity_comparison, aes(y=Total_US_Citizen_Naturalized, x= Population_Groups)) +
+  geom_bar(stat = 'identity', width = .5) +
+  labs(y='Total_US_Citizen_Naturalized', x= 'Population Groups', title = 'Ethnic Groups Naturalized in the US')
+
+ggplot(us_ethnicity_comparison, aes(y = Total_US_Citizen_Naturalized)) +
+  geom_histogram(bindwidth = .5, fill = 'red')+
+  labs(y= 'Total Amount of US Naturalizations' , title = 'US Citizens Naturalized')
+
+
+## I included both graphs, to show I can make a visualization of the dependent variable, but by itself it doesn't make anysense. Hence why I've added two variables with the first graph.
+```
+
+7.  Write a one-sentence summary of the visualization above. What is something interesting about the variable that the visualization highlights? (2 points)
+
+    The visualization highlights the sheer scale of how many people from the West Indian and Subsaharan African groups became naturalized US citizens, they almost double the value of the third largest ethnic group of naturalized citizens, the 'Arab' group.
+
+8.  Create one visualization of the independent variable of interest (e.g. bar graph, line graph, histogram). Be sure the visualization includes all the critical components, including a title, meaningful axes labels and any other useful labels. If you have more than one independent variable of interest, select one for this question. (4 points)
+
+```{r}
+#8
+
+us_non_citizen <- us_ethnicity_combined %>% select(Population_Groups, Total_Not_US_Citizen)
+
+us_non_citizen <- arrange(us_non_citizen, desc(Total_Not_US_Citizen))
+
+us_non_citizen <- us_non_citizen [1:10,]
+
+options(scipen = 999)
+ggplot(us_non_citizen, aes(y=Total_Not_US_Citizen)) +
+  geom_histogram(binwidth = .5, color = 'blue') +
+   labs(y='Total Non US Citizens', title = 'Amount of non US Citizens')
+
+
+options(scipen = 999)
+ggplot(us_non_citizen, aes(x=Population_Groups, y= Total_Not_US_Citizen)) +
+  geom_bar(stat = 'identity') +
+   labs(x='Ethnic Groups', y= 'Total Non US Citizens', title = 'Ethnic Groups that are Not US Citizens')
+
+#Again, I included two independent variables, because one of the independent variables, by itself in a visualization, doesn't make any sense.
+
+#########################################################################################################################################
+
+# 10
+
+ggplot(us_non_citizen, aes (x= Total_Not_US_Citizen, y = Population_Groups))+
+  geom_point() +
+  labs(x='Total Non US Citizens', y= 'Population Groups', title = 'Ethnic Groups that are Not US Citizens')
+
+# I switched the axes placement of the variables, since its much easier to read the ethnic groups on the y-axis.
+```
+
+9.  Write a one-sentence summary of the visualization above. What is something interesting about the variable that the visualization highlights? (2 points)
+
+    The independent variable I chose was Ethnic Groups, the data is somewhat similar to the naturalization graph from previously, with both West Indian and Subsaharan African groups obtaining the highest amount of non-US citizens by far, in comparison to the other 8 groups.
+
+10. Create one bivariate visualization that shows the relationship between the two variables used above (e.g. scatter plot, side-by-side bar plot, line graph). (4 points)
+
+11. Write a one-sentence summary of the visualization above. What is something interesting about the relationship that the visualization highlights? (2 points)
+
+    The scatterplot shows that the 4th to 10th largest population groups contain relatively the same number of non-US citizens.
+
+## Part 3: Regression Analysis
+
+13. (6 points total for Question 13)
+    -   Run a bivariate regression model that includes your dependent variable and one independent variable of interest.
+
+    -   Run a multivariate regression model that includes your dependent variable, one or more independent variables of interest and at least one control variable.
+
+    -   If you are using categorical variables, you can choose either to enter them linearly (in the case of ordered categorical variables) or use a dummy set. Just be clear, in a note below the table, about how the variables are coded.
+
+    -   Complete Table 3 with your regression results. List the independent variables (using meaningful variable names) in the first column. Include your bivariate model results in the second column and the multivariate model results in the third column. [*For each variable, list the estimated coefficient and the estimated standard error beneath in parentheses. Include only two digits beyond the decimal point.*]{.underline} Add or delete rows as necessary.
+
+**Dependent Variable:**
+
++-------------------------------------------------------------+------------------------------------------------------------------------------+-----------------------------------------------------------------------------+
+| Independent Variable                                        | Bivariate Model                                                              | Multivariate Model                                                          |
++=============================================================+==============================================================================+=============================================================================+
+| Example row: variable named                                 | $$                                                                           | $$                                                                          |
+|                                                             | \begin{aligned}                                                              | \begin{aligned}                                                             |
+|                                                             | \beta                                                                        | \beta                                                                       |
+|                                                             | \end{aligned}                                                                | \end{aligned}                                                               |
+|                                                             | $$                                                                           | $$                                                                          |
+|                                                             |                                                                              |                                                                             |
+|                                                             | *(standard error)*                                                           | *(standard error)*                                                          |
++-------------------------------------------------------------+------------------------------------------------------------------------------+-----------------------------------------------------------------------------+
+| 'Total_US_Citizen_Born_US' (Total \# People born in the US) | N/A                                                                          | .01 (estimated coefficent)                                                  |
+|                                                             |                                                                              |                                                                             |
+|                                                             |                                                                              | .0003 (standard error)                                                      |
++-------------------------------------------------------------+------------------------------------------------------------------------------+-----------------------------------------------------------------------------+
+| 'Population_Groups' Ethnic Groups                           | West Indian (all groups): 11,064.15 (coefficent)/ 16,405.43 (standard error) | West Indian (all groups): 17,717.41/ 11,714.89 (standard error)             |
+|                                                             |                                                                              |                                                                             |
+|                                                             | Subsaharan (all groups): 1,398.07 (coefficent) / 12,420.46 (standard error)  | Subsaharan (all groups): 1,223.53 (coefficent) / 11,554.40 (standard error) |
+|                                                             |                                                                              |                                                                             |
+|                                                             | Arab (all groups): 2,119,07 (coefficent) / 12,563 (standard error)           | Arab (all groups): 1,993.54 (coefficent) / 11,686,96 (standard error        |
++-------------------------------------------------------------+------------------------------------------------------------------------------+-----------------------------------------------------------------------------+
+
+: Table 3: Regression Results
+
+```{r}
+#13
+
+us_bivariate <- us_ethnicity_combined %>% select(Total_US_Citizen_Naturalized, Population_Groups)
+
+
+
+
+bivariate_regression <- lm(us_bivariate$Total_US_Citizen_Naturalized ~ us_bivariate$Population_Groups)
+coef(bivariate_regression)
+summary(bivariate_regression)
+
+
+us_multivariate <- us_ethnicity_combined %>% select(Total_US_Citizen_Naturalized, Total_US_Citizen_Born_US, Population_Groups)
+      
+
+multivariate_regression <- lm(us_multivariate$Total_US_Citizen_Naturalized ~ us_multivariate$Population_Groups + us_multivariate$Total_US_Citizen_Born_US)
+
+coef(multivariate_regression)
+summary(multivariate_regression)
+ 
+
+# I included the top 3 largest naturalized US citizen ethnic groups for the multivariate regression model, since the actual code returns over a hundred ethnic groups.
+
+###############################################################################################################################
+#17
+
+
+
+summary(multivariate_regression)
+
+
+```
+
+14. Explain your justification for one of the control variables that you chose to include in the multivariate model. (3 points)
+
+    I choose the 'Total_US_Citizen_Born_US' or total number of people born in the US as my control variable. I wanted to ensure that the individuals who were born in the US, are not effecting the naturalization variable, since those individuals born in the US are already US citizens.
+
+15. Interpret the coefficient on the independent variable of interest in the bivariate model. (3 points)
+
+    Since my independent variable consisted of many ethnic groups, I choose the 3 largest naturalized populations these were West Indians, Subsaharans, and Arabs. There is a strong correlation with those three ethnic groups and the level of naturalization, not surprising, since I choose the top 3 largest Naturalized ethnic groups. However, the West Indian group has a much higher positive correlation than the other two groups with 11,064 compared to 1,398 and 2,119.
+
+16. Interpret the coefficient on the independent variable of interest in the multivariate model. (3 points)
+
+    Again,all three groups had a very high positive correlation with Naturalization. However, the Subsaharan and Arab groups had a slight decrease in correlation, and the West Indian group increased. By factoring in US births, I think the reason for the slight decrease in correlation of the Subsaharan and Arab groups is due to more individuals being born in the US, compared to being naturalized. While the West Indian group, likely has a greater rate of naturalization compared to the other two ethnic groups.
+
+17. (4 points) Conduct a hypothesis test on the independent variable of interest in the multivariate model. State the null hypothesis, alternative hypothesis, t-score and result of the test.
+
+    -   *H~0~*: Ethnic groups and their respective US citizenship status, does not affect the rate of US naturalization for that specific ethnic group.
+
+    -   *H*~A~: Ethnic groups and their respective US citizenship status, does affect the rate of US naturalization for that specific ethnic group.
+
+    -   *t-score*: West Indian (All groups): 1.51 Subsaharan (All groups): .11 Arab (All groups): .17
+
+    -   Result of the test: West Indian (All groups): .13 (p-value) Subsaharan (All groups): .92 (p-value) Arab (All groups): .86 (p-value)
+
+        Since the p-values for the three largest naturalized ethnic groups are greater than .05, the null hypothesis is retained.
+
+18. In a few sentences, describe your overall findings from your analysis and their real-world importance. (3 points)
+
+    My findings show that at least for the three largest naturalized ethnic groups, their ethnicity and citizenship status does not seem to not affect their rate of US naturalization. This information helps show how much the US is a melting pot, and that an ethnic group and their amount of US born and non US citizens doesn't seem to affect an individual's naturalization. As the world is becoming increasingly polarized and racial driven, it is important for Americans to understand that the US is still a very accepting place and takes in people from all over the world. These findings help show that many people can become a US citizen, regardless of their ethnicity.
+
+19. If you were to continue to study this research question, what would be some useful next steps? In a few sentences describe what would be valuable to do next, such as collecting data on a new variable, conducting an experiment, operationalizing a variable in a different way, etc. Be specific in your recommendations (one paragraph). (3 points)
+
+If I were to continue studying this question, I would have to expand the amount of independent variables. I would have to draw from other datasets and look at variables such as socio-economics, level of english fluency, crime rates, etc. I would also narrow the scope to include specific ethnic groups, rather than picking the top 10 or 3. I also would further narrow the scope by maybe focusing on a state or city, rather than taking in data nation-wide. I think my analysis suffered from the scope of the question. A more narrow question might show different results compared to what I received in this project.
