@@ -1,0 +1,248 @@
+---
+title: "Assignment05: Decision Trees"
+author: Kevin Coleman
+format:
+  html:
+    embed-resources: true
+echo: true
+---
+
+## Introduction
+
+A decision tree is type of supervised machine learning model. It is a classification tool that identifies collections of features that lead to different outcomes. For this assignment you will run a decision tree and interpret the outcomes. There are three main tasks in the assignment. The first is to produce the decision tree output, the second is to correctly report the results, and the third is to test the model you have created on a new dataset.
+
+For the assignment, you will use the rate of violent crime as the target variable. In the assignment you will gain experience in working with decision tree models by interpreting the meaning of the branches and nodes that produce a given outcome. You will also use measures of model fit to assess the predictive capacity of the model given the set of input variables that you have selected.
+
+### Directions
+
+Use the lecture material from Module 3 and Module 8 and the readings from Module 8 to complete the assignment. These readings include *Practical Data Science with R*, Part 2, Chapter 6, Sections 6.3.2, *R in Action*, Part 4, Chapter 17, Section 17.3, and "Plotting rpart Trees with the rpart.plot".
+
+The completed assignment should adhere to the following guidelines:
+
+a\. Include your answers on the qmd document. Include the code in the code chunks and add your answers after each question.
+
+b\. Write your answers using complete sentences with correct punctuation, grammar, and spelling.
+
+c\. Submit your completed assignment with both the html file and the completed qmd file through the Canvas portal.
+
+Use the Vital Signs 2010 data, and your feature from Assignment 4 to answer Questions 1-3. Use Vital Signs 2010 along with Vital Signs 2020 to answer Question 4.
+
+1)  Recode the variable Violent Crime Rate per 1,000 Residents into four categories based on the quartiles. Using this as your target variable, create a decision tree to model rates of violent crime. *Make sure to omit the Part 1 Crime Rate per 1,000 Residents variable from the variables in your model*. And make sure to include the feature you created for the Assignment04 Feature Engineering. Produce a visualization for the tree. Include your code and the visualization output below. Report whether or not your feature from Assignment04 is one of the variables that shows up in the tree. Name this model1. *(3 points)*
+
+    ```{r}
+    library(rpart)
+    library(tidyverse)
+    library(skimr)
+    library(rpart.plot)
+    library(rattle)
+
+    #VS10 is included in the 'featuredf' data frame from assignment 4.
+
+    featuredf <- read.csv("C:/Users/kjcol/Desktop/Graduate School/Fall 24/Data Science for Public Policy/Week 8/Transformed_FeatureDF.csv") %>% select(- part1, -id)
+    #Converted variable from character to factor
+    featuredf$csa2010 <- as.factor(featuredf$csa2010)
+
+
+    featuredf$overdose_calls[43] <- 6.5
+
+    featuredf$juvenile_arrest[43] <- 2.5
+
+    # The feature
+    featuredf$overdose <- NA  
+    featuredf$overdose[featuredf$overdose_calls > 30] <- 4
+    featuredf$overdose[featuredf$overdose_calls >= 20 & featuredf$overdose_calls <= 30] <- 3
+    featuredf$overdose[featuredf$overdose_calls >= 10 & featuredf$overdose_calls < 20] <- 2
+    featuredf$overdose[featuredf$overdose_calls < 10] <- 1
+    featuredf$overdose <- as.numeric(featuredf$overdose) 
+
+    featuredf$juvenile_rate <- NA  
+    featuredf$juvenile_rate[featuredf$juvenile_arrest > 30] <- 4
+    featuredf$juvenile_rate[featuredf$juvenile_arrest >= 20 & featuredf$juvenile_arrest <= 30] <- 3
+    featuredf$juvenile_rate[featuredf$juvenile_arrest >= 10 & featuredf$juvenile_arrest < 20] <- 2
+    featuredf$juvenile_rate[featuredf$juvenile_arrest < 10] <- 1
+    featuredf$juvenile_rate <- as.numeric(featuredf$juvenile_rate)  
+
+    featuredf$interaction_term_transformed <- featuredf$overdose * featuredf$juvenile_rate
+
+
+    featuredf$interaction_term_untransformed <- featuredf$overdose_calls * featuredf$juvenile_arrest
+
+    hist(featuredf$violentcrime,
+         freq = FALSE,
+         breaks =30,
+         col = "red",
+         xlab = "Violent Crime",
+         main="Histogram")
+
+    skim(featuredf$violentcrime)
+    summary(featuredf$violentcrime)
+
+    # Recoded into quartiles
+    featuredf$violentcrimecat <- cut(
+      featuredf$violentcrime,
+      quantile(featuredf$violentcrime),
+      include.lowest = TRUE,
+      labels = c("1st Quartile", "2nd Quartile", "3rd Quartile", "4th Quartile")
+    )
+    #subset the data to remove the original violentcrime variable, and I removed the neighborhoods variable since it caused issues with running the model, despite converting the variable to factors.
+
+    featuredf2 <- featuredf %>% select(-violentcrime, -csa2010)
+
+    str(featuredf2)
+    ```
+
+    ```{r}
+    # The model
+
+    model1 <- rpart(violentcrimecat ~ ., data = featuredf2, method = "class")
+    ```
+
+    ```{r}
+    #Tree Visualization
+
+    rpart.plot::prp(model1, extra="auto", box.palette="auto", branch.lty=4, varlen=0,faclen = 0, shadow.col="gray", nn=TRUE, fallen.leaves = TRUE)
+    ```
+
+    ::: {#Answer1}
+    No, my interaction terms were not included in the tree visualization. However, overdose_calls or the number of overdose calls for service per 1,000 residents is a variable that I added to the VS10 dataset when I made my interaction term. According to the tree, overdose calls that are less than 13 is an important indicator for the 3rd and 4th quartiles of violent crime rates. This likely means that a neighborhood with overdose calls has higher rates of violent crime.
+    :::
+
+2)  Print the rules for the tree. Include your code and the rules output below. Report the attributes of the *terminal* nodes including the threshold values for each split and the percent of cases that are correctly predicted within the terminal node. *(3 points)*
+
+    ```{r}
+
+
+    rpart.plot(model1, type = 3, clip.right.labs = FALSE, branch = .3, under = TRUE)
+    rpart.rules(model1)
+    ```
+
+    ::: {#Answer2}
+    Before I list the conditions and prediction rates, I want to clarify that if i don't explicity mention a correct prediction rate, it is 0%, and that the prediction rates is specific to each quartile. For the first terminal node, the split occurs when the owner variable, or percentage of housing units that are owner occupied, is equal to or higher than 64% and the employed64 variable or, percentage of the population between 16-64 employed, is equal to or higher than 63%. The percent of cases predicted correctly for the first quartile of violent crime rate data is 78% and the second quartile is only 22%. For the second terminal node, the split occurs when the owner variable is equal to or higher than 64% and the employed64 variable is lower than 63%. The correct prediction rate for the second quartile of violent crime rates is 88% and the third quartile correct prediction rate is 12%. The third terminal node is split when the owner variable is below 64% and the overdose_calls variable or, the number of overdose calls for service per 1,000 residents, is less than 13. The percentage of correct predictions in the third quartile is 65%, for the second quartile it's 18%, and the fourth quartile it's 18%. In the 4th and final terminal node, the node splits when the owner variable is below 64% and the number of overdose calls is equal to and greater than 13. The percentage of correct predictions in the fourth quartile is 92% and 8% for the third quartile.
+    :::
+
+3)  Run a complexity table and plot. Report what you observe from the table and plot and what it indicates about the results of your model. Include your code, the output from the complexity parameter table, and the plot below. Create an error matrix and a measure of the overall error rate for your tree. Revise the tree to using any of the parameters minsplit, minbucket, cp, or maxdepth in order to potentially improve the results. Name this model2. Re-run the error matrix and overall error rate for your revised model. Include the code and the output below. Which model performed better?  *(5 points)*
+
+    ::: {#Answer3}
+    Since the increase in splits leads to a cp value closer to 0, or no entropy, more information is gained after each split. The default minimum gain for cp is .01 which is achieved at the 4th split. The minimum cross-validated standard error is .83, with a cross-validated standard error of + & - .087. Meaning that splits between the cross-validated error of .743 and .917 fit the requirement. The second, third, and fourth split meet this. The model is likely able to accommodate a few more splits, but risks overfitting if there are too many splits in the tree.
+
+    The second model performed better, it had a accuracy score of 84% and a overall error rate of 16%. This is a 6% increase in accuracy compared to the first model that had a 78% accuracy score. I set the minimum split value to 10, since a high split value could lead to underfitting for the model. For the minimum bucket parameter, I set it to 5, a high minsplit value can also lead to underfitting as well. I set the maxdepth value to 6, or 6 splits to ensure that the tree could be deep enough for better fitting. For the cp_value, I used .01, since the third split's cross-validated standard error was still within the threshold stated previously of .83. The lower cp value also allows for a more complex tree.
+    :::
+
+    ```{r}
+    #Complexity Table and Plot
+    printcp(model1)
+
+    plotcp(model1)
+
+
+
+    ```
+
+    ```{r}
+
+    # Error Matrix Model1
+    model1_predict <- data.frame(
+      violentcrimecat = featuredf$violentcrimecat,  
+      pred = predict(model1, type = "class")      
+    )
+
+    #Crosstab of observed and predicted values Model1
+    rtab <- table(model1_predict)
+    rtab
+
+
+    #Accuracy Model1
+    Accuracy <- sum(diag(rtab))/sum(rtab)
+    print(Accuracy)
+
+    #Overall Error Rate Model1
+    overall_error_rate <- 1 - Accuracy
+    print(overall_error_rate)
+    ```
+
+    ```{r}
+    # Set new parameters for Model2
+    minsplit_value <- 10      
+    minbucket_value <- 5      
+    cp_value <- 0.001        
+    maxdepth_value <- 6       
+
+    #Model2
+    model2 <- rpart(
+      violentcrimecat ~ .,          
+      data = featuredf2,             
+      method = "class",             
+      control = rpart.control(
+        minsplit = minsplit_value,
+        minbucket = minbucket_value,
+        cp = cp_value,
+        maxdepth = maxdepth_value
+      )
+    )
+
+
+    ```
+
+    ```{r}
+    # Error Matrix Model2
+    model2_predict <- data.frame(
+      violentcrimecat = featuredf$violentcrimecat,  
+      pred = predict(model2, type = "class")      
+    )
+
+    #Crosstab of observed and predicted values Model2
+    rtab2 <- table(model2_predict)
+    rtab2
+
+
+    #Accuracy Model2
+    Accuracy2 <- sum(diag(rtab2))/sum(rtab2)
+    print(Accuracy2)
+
+    #Overall Error Rate Model2
+    overall_error_rate2 <- 1 - Accuracy2
+    print(overall_error_rate2)
+    ```
+
+4)  Using the better of the two models from Question 3, test your model using the 2020 Vital Signs data. Create an error matrix and a measure of the overall error rate for the model with the 2020 data. Paste your code and output below. Report your comparison of the results for the model for the 2010 and 2020 data. How well does your model fit the data from ten years later? ***Note: this is not the process for using training and testing data.*** Here you are using the ***full dataset for 2010***, and then ***applying the 2010 model*** to the ***full dataset for 2020***  *(4 points)*
+
+    ::: {#Answer4}
+    The model does significantly worse in making correct predictions with the VS2020 data compared to the VS2010 data. The model has a accuracy score of 55% and a error rate of 45%. It seems that the variables employed64, overdose_calls, and owner are not as strong in predicting the category of violent crime rates than in 2010.
+    :::
+
+    ```{r}
+    # Load the 2020 Vital Signs data
+    VS2020 <- read.csv("C:/Users/kjcol/Desktop/Graduate School/Fall 24/Data Science for Public Policy/Week 8/VS20.csv")
+
+
+    VS2020$violentcrimecat <- cut(
+      VS2020$violentcrime,
+      quantile(VS2020$violentcrime, na.rm = TRUE),
+      include.lowest = TRUE,
+      labels = c("1st Quartile", "2nd Quartile", "3rd Quartile", "4th Quartile")
+    )
+    #Subset the dataset: I removed csa2010, since the amount of factors resulted in the model not running.
+    VS2020 <- VS2020 %>% select(-violentcrime, -csa2010, -part1, -id)
+
+    #Error Matrix Model2 VS2020
+    VS2020_predict <- data.frame(
+      violentcrimecat = VS2020$violentcrimecat,
+      pred =predict(model2, type = "class"))
+                                 
+    #Crosstab of observed and predicted values Model2 VS2020
+    rtab2020 <- table(VS2020_predict)
+    rtab2020
+
+
+    #Accuracy Model2 VS2020
+    Accuracy2020 <- sum(diag(rtab2020))/sum(rtab2020)
+    print(Accuracy2020)
+
+    #Overall Error Rate Model2 VS2020
+    overall_error_rate2020 <- 1 - Accuracy2020
+    print(overall_error_rate2020)
+    ```
+
+### Scoring
+
+The assignment is worth 15 points. The code for the visualization for the decision tree must include the elements from "Plotting rpart Trees with the rpart.plot Package" to receive full credit. Tests for the best model for Questions 1-3 must be thorough and complete for full credit. The content of the rules must be interpreted and reported fully and correctly for full credit.
