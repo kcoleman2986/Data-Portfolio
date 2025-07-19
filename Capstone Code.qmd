@@ -1,0 +1,1101 @@
+---
+title: "CapStone Code"
+author: "Kevin Coleman"
+format: html
+editor: visual
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+library(tidyverse)
+library(tidycensus)
+library(kableExtra)
+options(tigris_use_cache = TRUE)
+
+setwd("C:/Users/kjcol/Desktop/Graduate School/Spring 25/Capstone")
+```
+
+```{r}
+citation("tidycensus")
+```
+
+```{r}
+# Load variables for both periods
+load_variables(2018, "acs5", cache = TRUE)  # For 2014–2018 data
+load_variables(2023, "acs5", cache = TRUE)  # For 2019–2023 data
+
+```
+
+```{r}
+# Define states and list
+states <- state.abb
+tract_data_list <- list()
+
+# Loop through states
+for (state in states) {
+  
+  variables <- c(
+    med_income = "B19013_001", 
+    employed = "B23025_004", 
+    labor_force = "B23025_003",
+    high_school = "B15003_017",
+    bachelor = "B15003_022",
+    master = "B15003_023",
+    total_pop = "B01003_001",
+    median_rent = "B25064_001",
+    median_mortgage = "B25088_002",
+    home_ownership = "B25003_002",
+    home_rent = "B25003_003",
+    white = "B03002_003",
+    black = "B03002_004",
+    asian = "B03002_006",
+    hispanic = "B03002_012",
+    
+    # Disability 
+    dis_m_u5 = "B18101_004",
+    dis_m_5_17 = "B18101_007",
+    dis_m_18_34 = "B18101_010",
+    dis_m_35_64 = "B18101_013",
+    dis_m_65_74 = "B18101_016",
+    dis_m_75_up = "B18101_019",
+    dis_f_u5 = "B18101_023",
+    dis_f_5_17 = "B18101_026",
+    dis_f_18_34 = "B18101_029",
+    dis_f_35_64 = "B18101_032",
+    dis_f_65_74 = "B18101_035",
+    dis_f_75_up = "B18101_038"
+  )
+  
+  # 2014–2018
+  tract_2014_2018 <- get_acs(
+    geography = "tract",
+    variables = variables,
+    state = state,
+    output = "wide",
+    geometry = TRUE,
+    year = 2018,
+    survey = "acs5"
+  ) %>%
+    mutate(
+      period = "2014-2018",
+      disability_total = dis_m_u5E + dis_m_5_17E + dis_m_18_34E + dis_m_35_64E +
+                         dis_m_65_74E + dis_m_75_upE + dis_f_u5E + dis_f_5_17E +
+                         dis_f_18_34E + dis_f_35_64E + dis_f_65_74E + dis_f_75_upE,
+      disability_percent = ifelse(total_popE > 0, (disability_total / total_popE) * 100, NA)
+    )
+  
+  # 2019–2023
+  tract_2019_2023 <- get_acs(
+    geography = "tract",
+    variables = variables,
+    state = state,
+    output = "wide",
+    geometry = TRUE,
+    year = 2023,
+    survey = "acs5"
+  ) %>%
+    mutate(
+      period = "2019-2023",
+      disability_total = dis_m_u5E + dis_m_5_17E + dis_m_18_34E + dis_m_35_64E +
+                         dis_m_65_74E + dis_m_75_upE + dis_f_u5E + dis_f_5_17E +
+                         dis_f_18_34E + dis_f_35_64E + dis_f_65_74E + dis_f_75_upE,
+      disability_percent = ifelse(total_popE > 0, (disability_total / total_popE) * 100, NA)
+    )
+  
+  # results
+  tract_data_list[[paste0(state, "_2014_2018")]] <- tract_2014_2018
+  tract_data_list[[paste0(state, "_2019_2023")]] <- tract_2019_2023
+}
+```
+
+```{r}
+# Ensure uniform column structure
+columns_standard <- colnames(tract_data_list[[1]])
+tract_data_list <- lapply(tract_data_list, function(df) df[, columns_standard])
+```
+
+```{r}
+# Combine all tracts
+combined_tract_data <- bind_rows(tract_data_list)
+
+```
+
+```{r}
+# Extract State and County from NAME using comma splitting
+combined_tract_data <- combined_tract_data %>%
+  mutate(
+    State = sapply(str_split(NAME, ", "), function(x) x[3]),
+    County = sapply(str_split(NAME, ", "), function(x) x[2])
+  )
+```
+
+```{r}
+# Load and format OZ data
+OZ_data <- read.csv("Opportunity_Zones.csv")
+OZ_data$STATE <- sprintf("%02d", OZ_data$STATE)
+OZ_data$GEOID10 <- ifelse(nchar(OZ_data$GEOID10) == 10, paste0("0", OZ_data$GEOID10), OZ_data$GEOID10)
+OZ_data <- OZ_data %>% rename(GEOID = GEOID10) %>% mutate(OZ = 1)
+OZ_data_selected <- OZ_data %>% select(GEOID, OZ)
+```
+
+```{r}
+# Merge OZ info into final data
+final_data <- left_join(combined_tract_data, OZ_data_selected, by = "GEOID") %>%
+  mutate(OZ = replace_na(OZ, 0)) %>%
+  relocate(OZ, GEOID, NAME, State, County, period)
+```
+
+```{r}
+# Drop Margin of Error (M) columns
+final_data <- final_data %>% select(-matches("M$"))
+```
+
+```{r}
+# Convert 2014-2018 to 2023 Dollars to account for inflation prices
+# Avg 2023 CPI: 304.702
+# Avg 2018 CPI: 251.107
+cpi_conversion <- 304.702/ 251.107
+
+# Apply CPI conversion only to pre-OZ period
+final_data <- final_data %>%
+  mutate(
+    med_incomeE = ifelse(period == "2014-2018", med_incomeE * cpi_conversion, med_incomeE),
+    median_rentE = ifelse(period == "2014-2018", median_rentE * cpi_conversion, median_rentE),
+    median_mortgageE = ifelse(period == "2014-2018", median_mortgageE * cpi_conversion, median_mortgageE)
+  )
+```
+
+```{r}
+# Multiply rent and mortgage by 12 for annual
+final_data <- final_data %>%
+  mutate(
+    median_rentE = median_rentE * 12,
+    median_mortgageE = median_mortgageE * 12
+  )
+```
+
+```{r}
+# Pull variables for correlation as a non-sf data frame
+weight_vars_raw <- final_data %>%
+  st_drop_geometry() %>%  # ← strips the geometry safely
+  select(median_rentE, median_mortgageE, med_incomeE, employedE) %>%
+  drop_na() %>%
+  mutate(across(everything(), ~ as.numeric(as.character(.))))
+```
+
+```{r}
+# Correlation Matrix for Weight Determination
+cor_matrix <- cor(weight_vars_raw)
+weights <- rowSums(cor_matrix) - diag(cor_matrix)
+weights_norm <- weights / sum(weights)
+
+print(weights_norm)
+```
+
+```{r}
+# Normalization function
+normalize_100 <- function(x) (x - min(x, na.rm = TRUE)) / 
+                              (max(x, na.rm = TRUE) - min(x, na.rm = TRUE)) * 100
+```
+
+```{r}
+# Economic Index with inline ratio-based penalties
+# For Penalty: Median rent * (median rent/median income) and then divide by ratio 
+# 1,000 * (1,000 / 2,000) = 1,000 * .5 = 500
+# Normalize Sub-Variables (0-100)
+final_data$Economic_index <- (
+  normalize_100(
+    ifelse((final_data$median_rentE / final_data$med_incomeE) > 0.3,
+           final_data$median_rentE * (final_data$median_rentE / final_data$med_incomeE),
+           final_data$median_rentE)
+  ) * weights_norm["median_rentE"] +
+
+  normalize_100(
+    ifelse((final_data$median_mortgageE / final_data$med_incomeE) > 0.3,
+           final_data$median_mortgageE * (final_data$median_mortgageE / final_data$med_incomeE),
+           final_data$median_mortgageE)
+  ) * weights_norm["median_mortgageE"] +
+
+  normalize_100(final_data$employedE) * weights_norm["employedE"])
+```
+
+```{r}
+# Normalize final index on 0-100 scale
+final_data$Economic_index <- normalize_100(final_data$Economic_index)
+```
+
+```{r}
+# Clean unnecessary columns from dataset
+
+final_data <- final_data %>%
+  select(
+    -dis_m_u5E, -dis_m_5_17E, -dis_m_18_34E, -dis_m_35_64E,
+    -dis_m_65_74E, -dis_m_75_upE, -dis_f_u5E, -dis_f_5_17E,
+    -dis_f_18_34E, -dis_f_35_64E, -dis_f_65_74E, -dis_f_75_upE
+  )
+```
+
+```{r}
+
+# Make Covariates into Proportions instead of counts
+
+# Convert covariate counts to proportions of the total population
+final_data$whiteE <- final_data$whiteE/ final_data$total_pop
+
+final_data$blackE <- final_data$blackE/ final_data$total_pop
+
+final_data$asianE <- final_data$asianE / final_data$total_pop
+
+final_data$hispanicE<- final_data$hispanicE/ final_data$total_pop
+
+final_data$high_schoolE <- final_data$high_schoolE / final_data$total_pop
+
+final_data$bachelorE <- final_data$bachelorE / final_data$total_pop
+
+final_data$masterE <- final_data$masterE/ final_data$total_pop
+
+final_data$disability_total <- final_data$disability_total / final_data$total_pop
+
+housing_total <- final_data$home_rentE + final_data$home_ownershipE
+
+final_data$home_rentE <- final_data$home_rentE / housing_total
+
+final_data$home_ownershipE <- final_data$home_ownershipE / housing_total
+```
+
+```{r}
+# DiD Analysis
+library(quantreg)
+final_data$post <- ifelse(final_data$period == "2019-2023", 1, 0)
+```
+
+```{r}
+# StarGazer
+
+library(stargazer)
+```
+
+```{r}
+# Labels for Stargazer Tables
+
+custom_labels <- c(
+  "OZ (OZ = 1, Non-OZ = 0)",         # OZ
+  "Post (2019-2023 = 1, 2014-2018 = 0)",            # post
+  "White Population",                         # whiteE
+  "Black Population",                         # blackE
+  "Asian Population",                         # asianE
+  "Hispanic Population",                      # hispanicE
+  "High School Graduate",                     # high_schoolE
+  "Bachelor's Degree",                        # bachelorE
+  "Master's Degree",                          # masterE
+  "Owner-Occupied Housing",                   # home_ownershipE
+  "Disabled Population",                      # disability_total
+  "OZ * Post (DiD Effect)"           # OZ:post
+)
+```
+
+```{r}
+# Select and rename variables used in your OLS/DiD analysis
+vars_named <- final_data %>%
+  select(
+    Economic_index,
+    OZ,
+    whiteE, blackE, asianE, hispanicE,
+    high_schoolE, bachelorE, masterE,
+    home_rentE, home_ownershipE, disability_total
+  ) %>%
+  rename(
+    `Economic Well-being Index` = Economic_index,
+    `OZ Tract (1 = Yes)` = OZ,
+    `White Population` = whiteE,
+    `Black Population` = blackE,
+    `Asian Population` = asianE,
+    `Hispanic Population` = hispanicE,
+    `High School Graduate` = high_schoolE,
+    `Bachelor's Degree` = bachelorE,
+    `Master's Degree` = masterE,
+    `Owner-Occupied Housing` = home_ownershipE,
+    `Disabled Population` = disability_total
+  )
+```
+
+```{r}
+# Raw Stargazer Code
+vars_stargazer <- final_data %>%
+  st_drop_geometry() %>%  # Remove spatial column
+  select(
+    Economic_index,
+    OZ,                          
+    whiteE, blackE, asianE, hispanicE,
+    high_schoolE, bachelorE, masterE,
+   home_ownershipE, disability_total
+  ) %>%
+  mutate(
+    OZ = as.numeric(as.character(OZ))  # Ensure OZ is numeric
+  ) %>%
+    rename(
+    `Economic Well-being Index` = Economic_index,
+    `OZ Tract (1 = Yes)` = OZ,
+    `White Population` = whiteE,
+    `Black Population` = blackE,
+    `Asian Population` = asianE,
+    `Hispanic Population` = hispanicE,
+    `High School Graduate` = high_schoolE,
+    `Bachelor's Degree` = bachelorE,
+    `Master's Degree` = masterE,
+    `Owner-Occupied Housing` = home_ownershipE,
+    `Disabled Population` = disability_total
+  )
+  
+
+```
+
+Data Visualization and Modeling Section
+
+```{r}
+library(ggplot2)
+library(scales)
+```
+
+```{r}
+# Subset for Pre and Post OZ Implementation
+pre_OZ <- final_data %>% filter(period == "2014-2018")
+
+post_OZ <- final_data %>% filter(period == "2019-2023")
+
+pre_OZ_OZ_only <- pre_OZ %>% filter(OZ == 1)
+
+post_OZ_OZ_only <- post_OZ %>% filter(OZ == 1)
+```
+
+Inverse Probability Weighting (IPW)
+
+```{r}
+# Clean subset for IPW 
+final_data_ipw <- final_data %>%
+  mutate(post = ifelse(period == "2019-2023", 1, 0))
+
+# Drop SF object for coding
+final_data_ipw_df <- st_drop_geometry(final_data_ipw)
+
+# Subset without DV, needed for propensity
+model_data <- final_data_ipw_df %>%
+  select(GEOID, OZ,
+         high_schoolE, bachelorE, masterE,
+         home_ownershipE, home_rentE,
+         whiteE, blackE, asianE, hispanicE,
+         disability_total) %>%
+  na.omit()
+
+# Logisitc Regression for estimating propensity score
+ps_model <- glm(OZ ~
+                  high_schoolE + bachelorE + masterE +
+                  home_ownershipE +
+                  whiteE + blackE + asianE + hispanicE +
+                  disability_total,
+                data = model_data,
+                family = binomial())
+
+# Propensity Score
+model_data$pscore <- predict(ps_model, type = "response")
+
+# Joining propensity score with rest of dataset
+final_data_ipw_df <- final_data_ipw_df %>%
+  left_join(model_data %>% select(GEOID, pscore) %>% distinct(GEOID, .keep_all = TRUE), by = "GEOID")
+
+# Assigning weights based on propensity score to control tracts
+final_data_ipw_df <- final_data_ipw_df %>%
+  mutate(weight = case_when(
+    OZ == 1 ~ 1,
+    OZ == 0 ~ pscore / (1 - pscore),
+    TRUE ~ NA_real_
+  ))
+
+# Attach scores and weights back to the sf object
+final_data_ipw$pscore <- final_data_ipw_df$pscore
+final_data_ipw$weight <- final_data_ipw_df$weight
+
+# Summaries
+summary(final_data_ipw$pscore)
+summary(final_data_ipw$weight)
+
+```
+
+```{r}
+# Drop rows with missing weights
+final_data_ipw_clean <- final_data_ipw %>%
+  filter(!is.na(weight))
+
+# Run weighted DiD model with selected covariates
+did_model_ipw <- lm(
+  Economic_index ~ OZ * post +
+    whiteE + blackE + asianE + hispanicE +
+    high_schoolE + bachelorE + masterE + home_ownershipE +
+    disability_total,
+  data = final_data_ipw_clean,
+  weights = weight
+)
+
+summary(did_model_ipw)
+```
+
+```{r}
+# IPW for Table 1 Code
+
+vars_ipw <- final_data_ipw_clean %>%
+  st_drop_geometry() %>%
+  select(
+    Economic_index,
+    OZ,                          
+    whiteE, blackE, asianE, hispanicE,
+    high_schoolE, bachelorE, masterE,
+    home_ownershipE, disability_total
+  ) %>%
+  mutate(
+    OZ = as.numeric(as.character(OZ))
+  ) %>%
+  rename(
+    `Economic Well-being Index` = Economic_index,
+    `OZ Tract (1 = Yes)`         = OZ,
+    `White Population`           = whiteE,
+    `Black Population`           = blackE,
+    `Asian Population`           = asianE,
+    `Hispanic Population`        = hispanicE,
+    `High School Graduate`       = high_schoolE,
+    `Bachelor's Degree`          = bachelorE,
+    `Master's Degree`            = masterE,
+    `Owner-Occupied Housing`     = home_ownershipE,
+    `Disabled Population`        = disability_total
+  )
+
+
+```
+
+```{r}
+# Table 1 showing both Raw and IPW 
+
+#####################
+# Descriptive Statistics Table
+stargazer_output_descriptive <- capture.output(
+  stargazer(vars_stargazer,
+            type = "html",
+            title = "Table 1: Variable Descriptive Statistics",
+            digits = 2,
+            summary.stat = c("min", "median", "mean", "sd", "max"),
+            no.space = TRUE,
+             notes = "IPW re-weighting changed raw means by less than 1% across all variables, indicating well-balanced treatment (OZ) and control groups (Non-OZ).")
+)
+
+# Add source note below caption
+source_note <- "<caption style='caption-side:bottom; text-align:left; font-size:smaller;'>Source: 5-Year ACS, US Census Bureau & Housing Urban Development</caption>"
+
+# Inject the source note after the original caption
+stargazer_output_descriptive <- gsub("</caption>", paste0("</caption>\n", source_note), stargazer_output_descriptive)
+
+# Save to file
+writeLines(stargazer_output_descriptive, "Table 1 capstone_descriptive_stats.html")
+```
+
+```{r}
+# Stargazer OLS Model (IPW version)
+stargazer_output_ipw <- capture.output(
+  stargazer(did_model_ipw,
+            type = "html", 
+            title = "Table 2: OLS IPW Difference-in-Differences Model: Impact of OZ Policy",
+            covariate.labels = custom_labels,
+            dep.var.labels = "Economic Well-being Index",
+            digits = 3,
+            no.space = TRUE)
+)
+
+# Add a second caption line as a "source" note
+source_note <- "<caption style='caption-side:bottom; text-align:left; font-size:smaller;'>Source: 5-Year ACS, US Census Bureau & Housing Urban Development</caption>"
+
+# Inject the source note right after the existing </caption> (i.e., replacing it)
+stargazer_output_ipw <- gsub("</caption>", paste0("</caption>\n", source_note), stargazer_output_ipw)
+
+# Write to file
+writeLines(stargazer_output_ipw, "Table 2OLS_IPW.html")
+```
+
+```{r}
+# For Line Graph
+# Create average covariate profile (like before)
+avg_controls_ipw <- final_data_ipw_clean %>%
+  st_drop_geometry() %>%
+  summarize(across(c(whiteE, blackE, asianE, hispanicE,
+                     high_schoolE, bachelorE, masterE,
+                     home_ownershipE, disability_total),
+                   ~ mean(.x, na.rm = TRUE)))
+
+# Create prediction dataset: OZ × post matrix
+ipw_plot_data <- expand.grid(OZ = c(0, 1), post = c(0, 1)) %>%
+  bind_cols(avg_controls_ipw[rep(1, 4), ]) %>%
+  mutate(`OZ:post` = OZ * post)
+
+# Predict using IPW model
+ipw_plot_data$mean_index <- predict(did_model_ipw, newdata = ipw_plot_data)
+
+# Format for plotting
+ipw_plot_data <- ipw_plot_data %>%
+  mutate(
+    OZ = factor(OZ, labels = c("Non-OZ", "OZ")),
+    period = ifelse(post == 1, "2019–2023", "2014–2018")
+  )
+
+
+```
+
+```{r}
+
+# Fake OLS Legend Dataset
+predicted_labels_ols <- data.frame(
+  x = 1, y = 1,
+  label = factor(c(
+    "Pre-OZ: 12.5", "\u2003Post-OZ: 12.8",
+    "Pre-Non-OZ: 13.4", "\u2003Post-Non-OZ: 13.4"
+  ), levels = c(
+    "Pre-OZ: 12.5", "\u2003Post-OZ: 12.8",
+    "Pre-Non-OZ: 13.4", "\u2003Post-Non-OZ: 13.4"
+  ))
+)
+
+
+# Plot
+ggplot(ipw_plot_data, aes(x = period, y = mean_index, group = OZ, color = OZ, linetype = OZ)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  
+  # Dummy invisible points to trigger predicted values legend
+ geom_point(
+  data = predicted_labels_ols,
+  aes(x = x, y = y, shape = label),
+  alpha = 0, show.legend = TRUE,
+  inherit.aes = FALSE
+) +
+
+  # Legends
+  scale_color_manual(
+    values = c("blue", "red"),
+    labels = c("Non-OZ", "OZ"),
+    guide = guide_legend(order = 1, title = "Tract Type")
+  ) +
+ scale_linetype_manual(values = c("solid", "solid"), guide = "none") +
+  scale_shape_manual(
+    values = rep(22, 4),
+    guide = guide_legend(
+      title = "Predicted Mean Values",
+      override.aes = list(shape = NA, color = NA, fill = NA)
+    )
+  ) +
+
+  # Labels and theme
+  labs(
+    title = "Figure 1: OLS Estimates of Economic Well-being by OZ",
+    x = "Time Period",
+    y = "Predicted Economic Index (0–100)",
+    color = "Tract Type",
+    linetype = "Tract Type",
+    caption = "Adjusted using IPW-weighted OLS model with covariates\nSource: 5-year ACS, US Census Bureau & Housing Urban Development"
+  ) +
+  coord_cartesian(ylim = c(12.4, 13.7)) +
+  theme_dark(base_size = 13) +
+  theme(
+    legend.position = "right",
+    legend.box = "vertical",
+    legend.key = element_blank(),
+    legend.text = element_text(size = 10),
+    plot.caption = element_text(hjust = 0, size = 10),
+    plot.margin = margin(10, 10, 40, 10)
+  )
+```
+
+```{r}
+ggsave("Figure 1 IPW DiD Plot.png", width = 8, height = 6, dpi = 300)
+```
+
+```{r}
+# Can't USe StarGazer on rq.wfit models
+
+
+```
+
+```{r}
+
+# IPW QR Models (25th, 50th, and 75th)
+
+
+qr_formula <- Economic_index ~ OZ * post +
+  whiteE + blackE + asianE + hispanicE +
+  high_schoolE + bachelorE + masterE +
+  home_ownershipE + disability_total
+
+model_25_IPW <- rq(qr_formula, data = final_data_ipw_clean, tau = 0.25, weights = weight)
+
+model_50_IPW <- rq(qr_formula, data = final_data_ipw_clean, tau = 0.50, weights = weight)
+
+model_75_IPW <- rq(qr_formula, data = final_data_ipw_clean, tau = 0.75, weights = weight)
+
+
+```
+
+```{r}
+
+# First summarize using bootstrap standard errors
+
+summary_25 <- summary(model_25_IPW, se = "boot")
+summary_50 <- summary(model_50_IPW, se = "boot")
+summary_75 <- summary(model_75_IPW, se = "boot")
+```
+
+```{r}
+# Table 3
+
+extract_coefs <- function(summary_model, quantile_label) {
+  df <- as.data.frame(summary_model$coefficients)
+  df$term <- rownames(df)
+  df <- df %>%
+    mutate(
+      Estimate = round(Value, 3),
+      SE = round(`Std. Error`, 3),
+      stars = case_when(
+        `Pr(>|t|)` < 0.01 ~ "***",
+        `Pr(>|t|)` < 0.05 ~ "**",
+        `Pr(>|t|)` < 0.1 ~ "*",
+        TRUE ~ ""
+      ),
+      EstFormatted = paste0(Estimate, stars),
+      SEFormatted = paste0("(", SE, ")")
+    ) %>%
+    select(term, EstFormatted, SEFormatted) %>%
+    rename(
+      !!paste0("Est_", quantile_label) := EstFormatted,
+      !!paste0("SE_", quantile_label) := SEFormatted
+    )
+  return(df)
+}
+
+# Step 3: Apply to each quantile summary
+df_25 <- extract_coefs(summary_25, "25th")
+df_50 <- extract_coefs(summary_50, "50th")
+df_75 <- extract_coefs(summary_75, "75th")
+
+# Step 4: Merge and order rows
+qr_combined <- reduce(list(df_25, df_50, df_75), full_join, by = "term")
+
+# Step 5: Split into estimate and SE tables
+est_rows <- qr_combined %>%
+  select(term, starts_with("Est_")) %>%
+  rename_with(~ gsub("Est_", "", .x))
+
+se_rows <- qr_combined %>%
+  select(term, starts_with("SE_")) %>%
+  rename_with(~ gsub("SE_", "", .x))
+
+# Step 6: Apply custom labels in order
+est_rows$Term <- c("Intercept", custom_labels)
+se_rows$Term <- ""
+
+# Step 7: Stack coefficients and SEs together in proper order
+qr_output <- bind_rows(
+  map2_dfr(split(est_rows, 1:nrow(est_rows)), split(se_rows, 1:nrow(se_rows)), ~ bind_rows(.x, .y))
+) %>%
+  select(Term, `25th`, `50th`, `75th`)
+
+```
+
+```{r}
+table_html <- kable(qr_output, format = "html",
+                    caption = paste0(
+                      "<div style='text-align:center;'>",
+                      "<span style='font-size:18px; font-weight:bold;'>Table 3: 25th, 50th, and 75th Quantile Regression Results with IPW</span><br>",
+                      "<span style='font-size:14px; font-style:italic;'>Dependent Variable: Economic Well-being Index</span>",
+                      "</div>"
+                    ),
+                    escape = FALSE) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover")) %>%
+  as.character()
+
+source_note <- "<p style='font-size:smaller; text-align:center; margin-top:1em;'>Source: 5-Year ACS, US Census Bureau & Housing Urban Development</p>"
+
+cat(table_html, source_note, file = "Table3.html", sep = "\n")
+```
+
+```{r}
+# IPW QR 25th Line Graph
+
+# Create prediction data
+avg_controls_qr <- final_data_ipw_clean %>%
+  st_drop_geometry() %>% 
+  summarize(across(c(whiteE, blackE, asianE, hispanicE,
+                     high_schoolE, bachelorE, masterE,
+                     home_ownershipE, disability_total),
+                   ~ mean(.x, na.rm = TRUE)))
+
+prediction_data_25 <- expand.grid(OZ = c(0, 1), post = c(0, 1)) %>%
+  bind_cols(avg_controls_qr[rep(1, 4), ]) %>%
+  mutate(`OZ:post` = OZ * post)
+
+# Predict using the 25th quantile model
+prediction_data_25$mean_index <- predict(model_25_IPW, newdata = prediction_data_25)
+
+#  Add labels for plotting
+prediction_data_25 <- prediction_data_25 %>%
+  mutate(
+    OZ = factor(OZ, labels = c("Non-OZ", "OZ")),
+    period = ifelse(post == 1, "2019–2023", "2014–2018"),
+    Quantile = "25th"
+  )
+
+```
+
+```{r}
+# IPW QR 50th Line Graph
+
+# Create prediction data
+avg_controls_qr <- final_data_ipw_clean %>%
+  st_drop_geometry() %>% 
+  summarize(across(c(whiteE, blackE, asianE, hispanicE,
+                     high_schoolE, bachelorE, masterE,
+                     home_ownershipE, disability_total),
+                   ~ mean(.x, na.rm = TRUE)))
+
+prediction_data_50 <- expand.grid(OZ = c(0, 1), post = c(0, 1)) %>%
+  bind_cols(avg_controls_qr[rep(1, 4), ]) %>%
+  mutate(`OZ:post` = OZ * post)
+
+# Predict using the 25th quantile model
+prediction_data_50$mean_index <- predict(model_50_IPW, newdata = prediction_data_50)
+
+#  Add labels for plotting
+prediction_data_50 <- prediction_data_50 %>%
+  mutate(
+    OZ = factor(OZ, labels = c("Non-OZ", "OZ")),
+    period = ifelse(post == 1, "2019–2023", "2014–2018"),
+    Quantile = "50th"
+  )
+```
+
+```{r}
+# IPW QR 75th Line Graph
+
+# Create prediction data
+avg_controls_qr <- final_data_ipw_clean %>%
+  st_drop_geometry() %>%
+  summarize(across(c(whiteE, blackE, asianE, hispanicE,
+                     high_schoolE, bachelorE, masterE,
+                     home_ownershipE, disability_total),
+                   ~ mean(.x, na.rm = TRUE)))
+
+prediction_data_75 <- expand.grid(OZ = c(0, 1), post = c(0, 1)) %>%
+  bind_cols(avg_controls_qr[rep(1, 4), ]) %>%
+  mutate(`OZ:post` = OZ * post)
+
+# Predict using the 25th quantile model
+prediction_data_75$mean_index <- predict(model_75_IPW, newdata = prediction_data_75)
+
+#  Add labels for plotting
+prediction_data_75 <- prediction_data_75 %>%
+  mutate(
+    OZ = factor(OZ, labels = c("Non-OZ", "OZ")),
+    period = ifelse(post == 1, "2019–2023", "2014–2018"),
+    Quantile = "75th"
+  )
+```
+
+```{r}
+# Ensure Quantile labels are consistent
+prediction_data_25$Quantile <- "25th Percentile"
+prediction_data_50$Quantile <- "50th Percentile"
+prediction_data_75$Quantile <- "75th Percentile"
+
+# Combine the datasets
+qr_combined_plot_data <- bind_rows(prediction_data_25,prediction_data_50, prediction_data_75)
+
+# Fake Legend Dataset
+predicted_labels <- data.frame(
+  x = 1, y = 1,
+  label = factor(c(
+    "25th Pre-OZ: 9.7", "\u2003Post-OZ: 9.9", 
+    "25th Pre-Non-OZ: 10.2", "\u2003Post-Non-OZ: 10.3",
+    "50th Pre-OZ: 12.2", "\u2003Post-OZ: 12.5",
+    "50th Pre-Non-OZ: 12.9", "\u2003Post-Non-OZ: 13",
+    "75th Pre-OZ: 15", "\u2003Post-OZ: 15.3",
+    "75th Pre-Non-OZ: 16", "\u2003Post-Non-OZ: 16"
+  ), levels = c(
+    "25th Pre-OZ: 9.7", "\u2003Post-OZ: 9.9", 
+    "25th Pre-Non-OZ: 10.2", "\u2003Post-Non-OZ: 10.3",
+    "50th Pre-OZ: 12.2", "\u2003Post-OZ: 12.5",
+    "50th Pre-Non-OZ: 12.9", "\u2003Post-Non-OZ: 13",
+    "75th Pre-OZ: 15", "\u2003Post-OZ: 15.3",
+    "75th Pre-Non-OZ: 16", "\u2003Post-Non-OZ: 16"
+  ))
+)
+```
+
+```{r}
+# This is for Placing the legend values in Figure 2
+
+avg_controls_qr <- final_data_ipw_clean %>%
+  st_drop_geometry() %>%
+  summarize(across(c(whiteE, blackE, asianE, hispanicE,
+                     high_schoolE, bachelorE, masterE,
+                     home_ownershipE, disability_total),
+                   ~ mean(.x, na.rm = TRUE)))
+
+#  Define group combinations
+group_design <- expand.grid(
+  OZ = c(0, 1),
+  post = c(0, 1)
+) %>%
+  mutate(group = case_when(
+    OZ == 0 & post == 0 ~ "Pre-Non-OZ",
+    OZ == 0 & post == 1 ~ "Post-Non-OZ",
+    OZ == 1 & post == 0 ~ "Pre-OZ",
+    OZ == 1 & post == 1 ~ "Post-OZ"
+  ))
+
+# Add average covariates and interaction term
+get_prediction_data <- function(model) {
+  data <- bind_cols(group_design, avg_controls_qr[rep(1, 4), ]) %>%
+    mutate(`OZ:post` = OZ * post)
+  
+  data$mean_index <- predict(model, newdata = data)
+  return(data[, c("group", "mean_index")])
+}
+
+# Run predictions for each quantile model
+pred_25 <- get_prediction_data(model_25_IPW)
+pred_50 <- get_prediction_data(model_50_IPW)
+pred_75 <- get_prediction_data(model_75_IPW)
+
+# Add percentile labels
+pred_25$percentile <- "25th"
+pred_50$percentile <- "50th"
+pred_75$percentile <- "75th"
+
+# Combine all predictions
+all_preds <- bind_rows(pred_25, pred_50, pred_75)
+
+#  Format for easy viewing
+library(tidyr)
+pivot_wider(all_preds, names_from = group, values_from = mean_index) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 1))) -> summary_table
+
+# Show result
+summary_table
+```
+
+```{r}
+# Final plot for Figure 2
+ggplot() +
+  # Lines (colored by OZ)
+  geom_line(
+    data = qr_combined_plot_data,
+    aes(x = period, y = mean_index, group = interaction(OZ, Quantile), color = OZ),
+    size = 1.2
+  ) +
+  # Points (colored by OZ)
+  geom_point(
+    data = qr_combined_plot_data,
+    aes(x = period, y = mean_index, color = OZ),
+    size = 3
+  ) +
+  # Legend-only dummy points for predicted values
+  geom_point(
+    data = predicted_labels,
+    aes(x = x, y = y, shape = label),
+    alpha = 0, show.legend = TRUE
+  ) +
+  # Facets
+  facet_wrap(~ Quantile) +
+  
+  # Color legend for Tract Type
+  scale_color_manual(
+    values = c("blue", "red"),
+    labels = c("Non-OZ", "OZ"),
+    guide = guide_legend(order = 1, title = "Tract Type")
+  ) +
+  
+  # Shape legend for Predicted Values (text only, no symbols)
+  scale_shape_manual(
+    values = rep(22, 12),  # Just placeholders, won't be drawn
+    guide = guide_legend(
+      title = "Predicted Values",
+      override.aes = list(shape = NA, color = NA, fill = NA)
+    )
+  ) +
+  
+  # Labels and theme
+  labs(
+    title = "Figure 2: QR Estimates of Economic Well-being by OZ",
+    x = "Time Period",
+    y = "Predicted Economic Index (0–100)",
+    caption = "Source: 5-Year ACS, US Census Bureau & Housing Urban Development"
+  ) +
+  coord_cartesian(ylim = c(10, 18)) +
+  theme_dark(base_size = 13) +
+  theme(
+    legend.position = "right",
+    legend.box = "vertical",
+    legend.key = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.text = element_text(size = 10),
+    plot.caption = element_text(hjust = 0, size = 10),
+    strip.text = element_text(face = "bold", size = 12),
+    plot.margin = margin(10, 10, 40, 10)
+  )
+```
+
+```{r}
+ggsave("Figure2 Three QR Plots.png", width = 8, height = 6, dpi = 300)
+```
+
+Summit County Code
+
+```{r}
+akron_data <- final_data_ipw_clean %>%
+  filter(str_detect(NAME, "Summit County") & str_detect(NAME, "Ohio"))
+```
+
+```{r}
+akron_ols_model <- lm(
+  Economic_index ~ OZ * post +
+    whiteE + blackE + asianE + hispanicE +
+    high_schoolE + bachelorE + masterE +
+    home_ownershipE + disability_total,
+  data = akron_data
+)
+```
+
+```{r}
+stargazer_output_akron <- capture.output(
+  stargazer(akron_ols_model,
+            type = "html",
+            title = "Table 4: OLS IPW Difference-in-Differences Model: Impact of OZ Policy in Akron, OH (Summit County)",
+            covariate.labels = c("OZ (OZ= 1, Non-OZ = 0)",
+                                 "Post (2019-2023 = 1, 2014-2018 = 0) ",
+                                 "White Population",
+                                 "Black Population",
+                                 "Asian Population",
+                                 "Hispanic Population",
+                                 "High School Graduate",
+                                 "Bachelor's Degree",
+                                 "Master's Degree",
+                                 "Owner-Occupied Housing",
+                                 "Disabled Population",
+                                 "OZ * Post (DiD Effect)"),
+            dep.var.labels = "Economic Well-being Index",
+            digits = 3,
+            no.space = TRUE)
+)
+
+#  source note
+source_note_akron <- "<caption style='caption-side:bottom; text-align:left; font-size:smaller;'>Source: 5-Year ACS, US Census Bureau & Housing Urban Development</caption>"
+
+# Insert it into the output
+stargazer_output_akron <- gsub("</caption>", paste0("</caption>\n", source_note_akron), stargazer_output_akron)
+
+# Write the modified table to file
+writeLines(stargazer_output_akron, "Table 4 akron_ols_model.html")
+
+```
+
+```{r}
+# Line plot for Akron, OH
+avg_controls_akron <- akron_data %>%
+  st_drop_geometry() %>%  # <-- drop spatial columns
+  summarize(across(c(whiteE, blackE, asianE, hispanicE,
+                     high_schoolE, bachelorE, masterE,
+                     home_ownershipE, disability_total),
+                   ~ mean(.x, na.rm = TRUE)))
+
+prediction_data_akron <- expand.grid(OZ = c(0, 1), post = c(0, 1)) %>%
+  bind_cols(avg_controls_akron[rep(1, 4), ]) %>%  # repeat the average controls 4 times
+  mutate(
+    OZ = as.numeric(OZ),
+    post = as.numeric(post),
+    `OZ:post` = OZ * post,
+    OZ_label = factor(OZ, labels = c("Non-OZ", "OZ")),
+    period = ifelse(post == 1, "2019–2023", "2014–2018")
+  )
+
+# Predict using your Akron OLS model
+prediction_data_akron$mean_index <- predict(akron_ols_model, newdata = prediction_data_akron)
+
+
+```
+
+```{r}
+# Fake Legend Dataset
+predicted_labels_akron <- data.frame(
+  x = 1, y = 1,
+  label = factor(c(
+    "Pre-OZ: 12.8", "\u2003Post-OZ: 12.9",
+    "Pre-Non-OZ: 12.0", "\u2003Post-Non-OZ: 11.8"
+  ), levels = c(
+    "Pre-OZ: 12.8", "\u2003Post-OZ: 12.9",
+    "Pre-Non-OZ: 12.0", "\u2003Post-Non-OZ: 11.8"
+  ))
+)
+
+# plot
+ggplot(prediction_data_akron, aes(x = period, y = mean_index, group = OZ_label, color = OZ_label, linetype = OZ_label)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+
+  # Dummy invisible points to trigger predicted values legend
+  geom_point(
+    data = predicted_labels_akron,
+    aes(x = x, y = y, shape = label),
+    alpha = 0, show.legend = TRUE,
+    inherit.aes = FALSE
+  ) +
+
+  # Legends
+  scale_color_manual(
+    values = c("blue", "red"),
+    labels = c("Non-OZ", "OZ"),
+    guide = guide_legend(order = 1, title = "Tract Type")
+  ) +
+  scale_linetype_manual(
+    values = c("solid", "solid"),
+    guide = "none"  # suppress duplicate Tract Type legend
+  ) +
+  scale_shape_manual(
+    values = rep(22, 4),
+    guide = guide_legend(
+      title = "Predicted Mean Values",
+      override.aes = list(shape = NA, color = NA, fill = NA)
+    )
+  ) +
+
+  labs(
+    title = "Figure 3: OLS Estimates of Economic Well-being by OZ in Akron, OH",
+    x = "Time Period",
+    y = "Predicted Economic Index (0–100)",
+    color = "Tract Type",
+    caption = "Source: 5-Year ACS, US Census Bureau & Housing Urban Development"
+  ) +
+  coord_cartesian(ylim = c(11.7, 13.2)) +
+  theme_dark(base_size = 13) +
+  theme(
+    legend.position = "right",
+    legend.box = "vertical",
+    legend.key = element_blank(),
+    legend.text = element_text(size = 10),
+    plot.caption = element_text(hjust = 0, size = 10),
+    plot.margin = margin(t = 30, r = 10, b = 40, l = 10)
+  )
+```
+
+```{r}
+ggsave("Figure 3 AKron Line Plot.png", width = 8, height = 6, dpi = 300)
+```
