@@ -1,0 +1,176 @@
+---
+title: "Assignment04: Feature Engineering"
+author: Kevin Coleman
+format:
+  html:
+    embed-resources: true
+echo: true
+---
+
+## Introduction
+
+The features selected for supervised and unsupervised learning algorithms should have strong relationships to the primary outcome of interest. The target variable in the Decision Tree Assignment is the rate of violent crime. For this assignment you will use the Vital Signs data and transform a variable or variables to create a new variable that you expect to have strong predictive capacity for the rate of violent crime. There will not necessarily be a *causal* relationship, but the feature that you engineer should be strongly predictive of levels of violent crime. In the first part of the assignment you will discuss the way in which the feature you are creating is was informed by the assigned readings. For the second part of the assignment you will transform the data in R. In the third part of the assignment, you will run bivariate correlations to test your feature.
+
+The assignment will be graded on two criteria. The first is the degree to which you read, absorbed, and integrated the readings into your thinking and the quality of your communication about that. The second is the thought and effort you put into constructing the feature -- why you think your new feature will be predictive of violent crime, how you assessed the raw data, and the transformations, recoding, restructuring, or reformulation of the original data that went into your process. For this assignment, the grade will depend on 1) your mastery of the concepts in the readings and 2) your effort in constructing a new variable.
+
+For the Decision Tree Assignment, you will test the predictive capacity of the feature you created. So, you will be putting your work to the test. Your final target variable for that assignment will be rates of violent crime for 2010.
+
+### Directions
+
+Use variables for the assignment that are not already included in the VS10 and VS20 datasets. You must use at least two variables (features) for the feature that you engineer. Remember that the decision tree model does not depend on the same types of assumptions that are required for an ordinary least squares model (OLS), so transforming a variable to ensure normality (log transformation, for example) is not a good solution for the assignment. The variables can be from any of the years that are available from the BNAI data.
+
+"Predicting Gentrification Using Longitudinal Census Data" demonstrates innovative data transformations grounded in subject matter expertise. And "How Can Baltimore City Prevent Housing Abandonment?" is a good discussion of the broad search for effective features. Use these readings to inform your understanding of the feature engineering process. The assigned readings from *Feature Engineering and Selection: A Practical Approach* Chapter 5, Section 5.7, Chapter 6, Sections 6.1 and 6.2 have more advanced information on encoding and transforming variables for the feature engineering process.
+
+The readings provide the code and examples of specific types of features that should guide your construction of a feature for the assignment. Use the transformations described in *Practical Data Science with R*, Chapter 4, Section 4.1, as guide to transforming a variable or variables into your new feature. (Also refer to *R in Action*, Part 1, Chapter 4, Sections 4.1, 4.2, and 4.3 for additional information on creating and recoding variables). Use the feature engineering examples from *Tidy Modeling with R,* Chapter 6 Feature Engineering with Recipes, Sections 8.4.2-8.4.6. And use *Hands-on Machine Learning with R*, Chapter 3 Feature & Target Engineering, Sections 3.1-3.6.
+
+Your engineered feature can be nominal, ordinal, or interval, but make sure it is a numeric data type in your dataframe. For more information on the different levels of measurement, see the optional reading from *Political Science Research Methods,* pages 92-95.
+
+The completed assignment should adhere to the following guidelines:
+
+a\. Include your answers on the qmd document. Include the code in the code chunks and add your answers after each question.
+
+b\. Write your answers using complete sentences with correct punctuation, grammar, and spelling.
+
+c\. Submit your completed assignment with both the html file and the completed qmd file through the Canvas portal.
+
+1)  What aspects of the methodology or reasoning in "Predicting Gentrification Using Longitudinal Census Data" and "How Can Baltimore City Prevent Housing Abandonment?" figured in to your idea for a feature? Discuss the information in those two readings that informed your ideas about the feature that you will be engineering. Be specific in your discussion of the readings. *(2 points)*
+
+    :::: {#Answer1}
+    <div>
+
+    For my feature selection, I took aspects from both the readings. For example, the Predicting Gentrification reading ran on the assumption/ theory 'low-priced neighborhoods adjacent to wealthy ones have the highest probability of gentrifying in the face of new housing demand'. The reading called this endogenous gentrification. Essentially, gentrifiers choose to move to adjacent neighborhoods within a reasonable distance of amenities for lower housing costs, this has a feedback cycle of generating new amenities in the adjacent neighborhood leading to increased prices. My feature selection runs on a similar assumption/theory that the prevalence of drugs is predictive of violent crime rates. Drugs and violence I believe have a similar feedback cycle. Illegal drugs can only be regulated through violence, so the increase in drugs likely brings violence to neighborhoods.
+
+    For the second reading on House abandonment in Baltimore, the researchers used data from postal services and water utility info to ascertain the occupancy status of a house. The researchers also used 'ground truth'' data where they went door-to-door collecting occupancy information they knew was 100% true. The variables I choose for my feature act in a similar nature, the Juvenile arrest rate for drug-related offenses per 1,000 juveniles acts as my postal service/ water utility data and the number of overdose calls for service per 1,000 residents is the 'ground truth' data. The overdose calls are 100% confirmed drug use within the neighborhood. The drug-related offenses are the indirect measure of drug use within a neighborhood like the water utility info was for occupancy. I can use the information from these two variables to train the future model to help accurately predict violent crime rates.
+
+    </div>
+    ::::
+
+2)  Describe the feature you have engineered and identify and describe the variables that you used. Include a discussion of the original variable or variables and your proposed transformation in your description. Explain the reasoning for your choices, including why you believe your feature would be a good predictor of violent crime. *(2 points)*
+
+    ::: {#Answer2}
+    I created a feature that looks at the prevalence of drugs within a neighborhood, I believe this is a strong predictor of violent crime rates due to known associations with drugs and violence. The drug trade is illegal and lacks peaceful regulatory institutions that government provides, due to this, the drug trade is largely regulated through violence. According to Goldstein, drug use and drug trafficking is one of the underlying causes for violence (1985).
+
+    To mimic the drug prevalence feature, I combined both the Juvenile arrest rate for drug-related offenses (2015) variable with the number of overdose calls for service per 1,000 residents (2018) variable. The two variables are known instances of drug use/ trafficking within a given neighborhood. Combining these variables provides a better picture for the prevalence of drugs since it looks into both confirmed drug use and cases of drug trafficking. If the hypothesis from Goldstein is true, that drug use/trafficking is a cause of violence, than the drug prevalence feature should be a strong indicator of violent crime rate in a neighborhood.
+
+    Citation: Goldstein, P. J. (1985). The drugs/violence nexus: A Tripartite Conceptual Framework. *Journal of Drug Issues*, *15*(4), 493–506. https://doi.org/10.1177/002204268501500406
+    :::
+
+3)  Explain how you transformed the data and include the code that you used below your answer. *(3 points)*
+
+    ::: {#Answer3}
+    After I read the data, joined the datsets together, and cleaned the new dataset, I made histograms of the two variables I choose for the feature. Both variables have a right-skew, meaning most neighborhoods have low rates of overdoses and juvenile drug-related offenses. However, there are very high outliers for both histograms, thus creating the right-skew seen in both histograms.
+
+    For the recoding portion/ transformation, I created four ordinal categories. I tried to make breaks that made sense for the data. The breaks are actually the same as the example code, since the skewness and values were similar to the lecture example. I also wanted breaks by 'easy' numbers such as 10 instead of picking a odd number like 6 or 7 for simplicity. I think the assigned levels make sense as a 4 rating would equate to very high, so the big outliers, while the 3, 2, and 1 ratings will assign values to the majority of data within the distribution. I then made a interaction term by multiplying the recoded transformed variables together and I did the same for a interaction term without the recoded transformation. I did this to provide a better comparison between the two. The transformation of the recoded variables should help account for skewness and outliers within the data, providing a more accurate prediction of how drug prevalence affects violence in a neighborhood.
+    :::
+
+```{r}
+library(tidyverse)
+library(reshape2)
+library(rpart)
+library(rpart.plot)
+library(car)
+library(skimr)
+library(pastecs)
+
+
+VS10 <- read.csv("C:/Users/kjcol/Desktop/Graduate School/Fall 24/Data Science for Public Policy/Week 7/VS10.csv")
+juvenile_arrest_rate <- read.csv("C:/Users/kjcol/Desktop/Graduate School/Fall 24/Data Science for Public Policy/Week 7/Vital Signs Indicator Juvenile Arrest Rate for Drug-Related Offenses per 1,000 Juveniles.csv")
+
+
+overdose_calls <- read.csv("C:/Users/kjcol/Desktop/Graduate School/Fall 24/Data Science for Public Policy/Week 7/Vital Signs Indicator Number of Overdose Calls for Service per 1,000 Residents.csv")
+
+
+featuredf <- VS10 %>% 
+  left_join(juvenile_arrest_rate, by = c("Community")) %>% 
+              left_join(overdose_calls, by = c("Community")) %>%
+  rename(overdose_calls = "X2018.Data") %>%
+  rename(juvenile_arrest = "X2015.Data")
+
+
+# For some reason the joined dataset left two NA values for row 43, even though the original datasets had values, that's why I manually added them below.
+
+featuredf$overdose_calls[43] <- 6.5
+
+featuredf$juvenile_arrest[43] <- 2.5
+
+```
+
+```{r}
+hist(featuredf$juvenile_arrest,
+     main = "Histogram of Juvenile Arrests",
+     xlab = "Number of Juvenile Arrests",
+     ylab = "Frequency",
+     col = "blue",      
+     border = "black",  
+     breaks = 10)       
+
+hist(featuredf$overdose_calls,
+     main = "Histogram of Overdose Calls",
+     xlab = "Number of Overdoses",
+     ylab = "Frequency",
+     col = "blue",      
+     border = "black",  
+     breaks = 10)       
+```
+
+```{r}
+
+featuredf$overdose <- NA  
+featuredf$overdose[featuredf$overdose_calls > 30] <- 4
+featuredf$overdose[featuredf$overdose_calls >= 20 & featuredf$overdose_calls <= 30] <- 3
+featuredf$overdose[featuredf$overdose_calls >= 10 & featuredf$overdose_calls < 20] <- 2
+featuredf$overdose[featuredf$overdose_calls < 10] <- 1
+featuredf$overdose <- as.numeric(featuredf$overdose) 
+```
+
+```{r}
+
+featuredf$juvenile_rate <- NA  
+featuredf$juvenile_rate[featuredf$juvenile_arrest > 30] <- 4
+featuredf$juvenile_rate[featuredf$juvenile_arrest >= 20 & featuredf$juvenile_arrest <= 30] <- 3
+featuredf$juvenile_rate[featuredf$juvenile_arrest >= 10 & featuredf$juvenile_arrest < 20] <- 2
+featuredf$juvenile_rate[featuredf$juvenile_arrest < 10] <- 1
+featuredf$juvenile_rate <- as.numeric(featuredf$juvenile_rate)  
+```
+
+```{r}
+
+featuredf$interaction_term_transformed <- featuredf$overdose * featuredf$juvenile_rate
+
+
+featuredf$interaction_term_untransformed <- featuredf$overdose_calls * featuredf$juvenile_arrest
+```
+
+4)  Use either **pastecs** or **skimr** to run descriptive statistics for your new feature and the original variables that went in to the creation of the feature. Include the code and the results below. Discuss how they are different. Run a correlation matrix for the original untransformed variables, your new feature, and the violent crime variable using **car**. Include your code and your results below. Which of the variables has the strongest correlation to violent crime? *(3 points)*
+
+    ::: {#Answer4}
+    
+
+
+    The transformed interaction term has a slight decrease in correlation with the violentcrime variable. However, the interaction term is only 5% lower than the untransformed interaction term, and a correlation rating of .69 still suggests a high-level of correlation with the target variable. The transformed interaction term has a mean of 2 compared to the untransformed term with a mean of 76, and yet the correlation only dropped by 5% despite losing the skewness. This is also seen in the regression lines for the scatterplot matrix, both the interaction terms have a similar positive regression with the violentcrime variable. Of the two chosen variables, the juvenile arrest variable had the lowest correlation with violent crime at 54%, however, 54% correlation is still significant. The overdose calls variable had the highest correlation with violentcrime, having a 80% correlation. Overall, the transformed interaction term has a lower correlation than the overdose variable and the untransformed interaction term. Despite the lower correlation, I still believe this feature is valuable for modeling violentcrime, it is still highly correlated at 69% and helps prove the original theory proposed by Goldstein.
+    :::
+
+```{r}
+skim_results <- skim(featuredf[c("violentcrime", "overdose_calls", "juvenile_arrest", "interaction_term_transformed", "interaction_term_untransformed")])
+print(skim_results)
+
+
+correlation_matrix_drug <- cor(featuredf[c("violentcrime", "overdose_calls", "juvenile_arrest", "interaction_term_transformed", "interaction_term_untransformed")])
+
+print(correlation_matrix_drug)
+
+```
+
+```{r}
+scatterplotMatrix(~ violentcrime + overdose_calls + juvenile_arrest + interaction_term_transformed + interaction_term_untransformed,
+                   data = featuredf,
+                   main = "Scatterplot Matrix Drug Variables",
+                   col = "blue",  
+                   pch = 19,  
+                   reg.line = lm,  
+                   smoother = TRUE) 
+```
+
+### Scoring
+
+For full credit, for question 1 the answer should include specific and clear discussion of the readings. For questions 2-3, the reasoning for the choices of the components and construction should be fully and completely explained. Answers for question 4 the discussion of the results should be complete and clear.
