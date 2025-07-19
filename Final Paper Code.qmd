@@ -1,0 +1,224 @@
+---
+title: "Final Paper Code"
+author: "Kevin Coleman"
+format: html
+editor: visual
+---
+
+```{r}
+library(tigris)
+library(ggplot2)
+library(mapview)
+library(tidycensus)
+library(tidyverse)
+library(readr)
+library(skimr)
+library(cowplot)
+
+setwd("C:/Users/kjcol/Desktop/Graduate School/Fall 24/Urban Data Analytics/Final Week")
+
+
+
+
+```
+
+```{r}
+summit_df <- get_acs (geography = "tract",
+                      variables = c( medinc = "B19013_001",
+                                    highschool= "B15003_017",
+                                    bachelor = "B15003_022"
+                                    ),
+                      state = "OH", county = "Summit",
+                      output = "wide", year = 2020,  geometry= TRUE)
+
+summit_df <- summit_df %>% select(-medincM, -highschoolM, -bachelorM, - GEOID)
+
+
+summit_df <- summit_df %>%
+  rename(
+    median_income = medincE,
+    highschool = highschoolE,
+    bachelor = bachelorE,
+  )
+
+
+
+write.csv(summit_df, file="summit.csv", row.names= FALSE)
+
+anyNA(summit_df)
+
+```
+
+```{r}
+# Histogram for median_income
+ggplot(summit_df, aes(x = median_income)) +
+  geom_histogram(binwidth = 5000, fill = "skyblue", color = "black", alpha = 0.7) +
+  labs(title = "Distribution of Median Income in Summit County", x = "Median Income", y = "Count",
+       caption = "Source: 2020 1-year ACS, US Census Bureau") +
+  theme_minimal()
+
+# Histogram for highschool
+ggplot(summit_df, aes(x = highschool)) +
+  geom_histogram(binwidth = 100, fill = "salmon", color = "black", alpha = 0.7) +
+  labs(title = "Distribution of High School Graduates in Summit County", x = "Count of High School Graduates", y = "Count", caption = "Source: 2020 1-year ACS, US Census Bureau") +
+  theme_minimal()
+
+# Histogram for bachelor
+ggplot(summit_df, aes(x = bachelor)) +
+  geom_histogram(binwidth = 100, fill = "green", color = "black", alpha = 0.7) +
+  labs(title = "Distribution of Bachelor's Degree Holders in Summit County", x = "Count of Bachelor's Degree Holders", y = "Count", caption = "Source: 2020 1-year ACS, US Census Bureau") +
+  theme_minimal()
+```
+
+```{r}
+skim(summit_df)
+
+
+```
+
+This table has extraneous information, reports out to 6 decimal points and has variable names with extra letters. You should make the table more readable. Otherwise, interesting data and discussion. Let me know if you have questions or need any help.
+
+1.    FINDINGS: Use this section to report the results of your univariate and bivariate analyses. You should begin with a detailed univariate analysis of both your variables (or all if more than 2), presenting ALL appropriate descriptive statistics, charts, tables, and graphs. Next, when reporting the results of your hypothesis test, briefly re-state your hypothesis, show the findings (crosstab, scatterplot, regression output, etc) and briefly summarize, (a) what you think the results tell you, (b) whether the results are substantively and statistically significant, and (c) whether they appear to confirm or disconfirm your hypothesis. Note any interesting aspects of the results.
+
+```{r}
+bachelor_breaks <- quantile(summit_df$bachelor,
+probs = seq(0, 1, by = 1/3),
+na.rm = TRUE,
+names = TRUE,
+include.lowest = TRUE)
+
+income_breaks <- c(min(summit_df$median_income, na.rm = TRUE), 
+                   31200,                # Poverty threshold
+                   60000,                # Lower-middle-class threshold
+                   max(summit_df$median_income, na.rm = TRUE))
+
+income_labels <- c("Poverty", "Lower-Middle Class", "Middle Class & Up")
+
+summit3 <- summit_df %>%
+mutate(bachelor_quantiles = cut(bachelor,
+breaks = bachelor_breaks),
+income_quantiles = cut(median_income,
+labels = income_labels,
+breaks = income_breaks,
+include.lowest = TRUE))
+
+summit3 <- summit3 %>%
+mutate(group = paste(
+as.numeric(income_quantiles), "-",
+as.numeric(bachelor_quantiles))
+)
+
+bivariate_color_scale_2 <- tibble(
+  "3 - 3" = "#3b4994", # high- high 
+  "2 - 3" = "#5698b9",
+  "1 - 3" = "#5ac8c8", # low - high 
+  "3 - 2" = "#8c62aa",
+  "2 - 2" = "#a5add3", # medium  - medium 
+  "1 - 2" = "#ace4e4",
+  "3 - 1" = "#be64ac", # high  - low 
+  "2 - 1" = "#dfb0d6",
+  "1 - 1" = "#e8e8e8"  # low  - low 
+) %>%
+gather("group", "fill_col")
+
+summit3 <- left_join(summit3, bivariate_color_scale_2, by = "group")
+
+bivariate_color_scale <- bivariate_color_scale_2 %>%
+  separate(group, into = c("Income", "Bachelor"), sep = " - ")
+
+legend <- ggplot() +
+  geom_tile(data = bivariate_color_scale,
+            aes(x = Income, y = Bachelor, fill = fill_col)) +
+  scale_fill_identity() +
+  labs(x = "Higher Income ->",
+       y = "Higher number of Bachelor ->") +
+  theme(axis.title = element_text(size = 6, face = "bold")) +
+  coord_fixed()
+
+map <- ggplot(summit3) +
+  geom_sf(aes( fill = fill_col)) +
+  scale_fill_identity() +
+  theme_void()+
+  labs(title = "Bivariate Choropleth of Income and Bachelors \n in Summit County, OH",
+       caption = "Source: 2020 1-year ACS, US Census Bureau")
+
+ggdraw() +
+draw_plot(map, 0, 0, 1, 1) +
+draw_plot(legend, 0.05, 0.075, 0.2, 0.2)
+```
+
+```{r}
+highschool_breaks <- quantile(summit_df$highschool,
+probs = seq(0, 1, by = 1/3),
+na.rm = TRUE,
+names = TRUE,
+include.lowest = TRUE)
+
+
+income_breaks <- c(min(summit_df$median_income, na.rm = TRUE), 
+                   31200,                # Poverty threshold
+                   60000,                # Lower-middle-class threshold
+                   max(summit_df$median_income, na.rm = TRUE))
+
+summit3 <- summit_df %>%
+mutate(highschool_quantiles = cut(highschool,
+breaks = highschool_breaks),
+income_quantiles = cut(median_income,
+labels = income_labels,
+breaks = income_breaks,
+include.lowest = TRUE))
+
+summit3 <- summit3 %>%
+mutate(group = paste(
+as.numeric(income_quantiles), "-",
+as.numeric(highschool_quantiles))
+)
+
+bivariate_color_scale_2 <- tibble(
+  "3 - 3" = "#3b4994", # high- high 
+  "2 - 3" = "#5698b9",
+  "1 - 3" = "#5ac8c8", # low - high 
+  "3 - 2" = "#8c62aa",
+  "2 - 2" = "#a5add3", # medium  - medium 
+  "1 - 2" = "#ace4e4",
+  "3 - 1" = "#be64ac", # high  - low 
+  "2 - 1" = "#dfb0d6",
+  "1 - 1" = "#e8e8e8"  # low  - low 
+) %>%
+gather("group", "fill_col")
+
+summit3 <- left_join(summit3, bivariate_color_scale_2, by = "group")
+
+bivariate_color_scale <- bivariate_color_scale_2 %>%
+  separate(group, into = c("Income", "Highschool"), sep = " - ")
+
+legend <- ggplot() +
+  geom_tile(data = bivariate_color_scale,
+            aes(x = Income, y = Highschool, fill = fill_col)) +
+  scale_fill_identity() +
+  labs(x = "Higher Income ->",
+       y = "Higher number of High School Graduates ->") +
+  theme(axis.title = element_text(size = 6, face = "bold")) +
+  coord_fixed()
+
+map <- ggplot(summit3) +
+  geom_sf(aes( fill = fill_col)) +
+  scale_fill_identity() +
+  theme_void()+
+  labs(title = "Bivariate Choropleth of Income and Highschool \n Graduates in Summit County, OH",
+       caption = "Source: 2020 1-year ACS, US Census Bureau")
+
+ggdraw() +
+draw_plot(map, 0, 0, 1, 1) +
+draw_plot(legend, 0.05, 0.075, 0.2, 0.2)
+```
+
+```{r}
+model <- lm(median_income ~ highschool + bachelor, data = summit_df)
+
+summary(model)
+```
+
+For the primary hypothesis, tracts with overall lower median incomes are likely to have lower levels of educational attainment compared to other tracts. The secondary hypothesis asserts that tracts with predominately poverty level median incomes likely contain high levels of high school graduates only compared to bachelor’s degrees. The two hypotheses are based on a couple of assumptions. College education is associated with higher paying jobs and more stability, since higher paying jobs require critical thinking skills that are usually obtained through higher education. Additionally, communities with a low average income likely have worse public schools and fewer opportunities to pursue higher education.
+
+1.    DISCUSSION: Here is where you pull it all together. How did your hypothesis pan out? Confirmed or disconfirmed? Any surprises? Banish the word “prove” from your analytic vocabulary. Your findings might confirm, partially confirm, support, tend to support, buttress, add weight to, but they do not PROVE…Did your results answer (or at least illuminate) your research question? What new research questions and hypotheses occur to you based on these results? Briefly, if you had the time and resources, how would you go about testing them?
