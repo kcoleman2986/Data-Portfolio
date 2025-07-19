@@ -1,0 +1,546 @@
+---
+title: "Kevin Coleman Military Spending Portfolio Presentation"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(shiny)
+library(tidyverse)
+library(ggthemes)
+library(RColorBrewer)
+library(ggrepel)
+library(knitr)
+library(readxl)
+library(tinytex)
+library(heatmaply)
+library(ggcorrplot)
+library(ggrepel)
+library(GGally)
+library(plotly)
+library(maps)
+library(scales)
+library(shinyWidgets)
+library(sf)
+
+military_data_2022 <- read_xlsx("Military_Expenditure.xlsx", sheet= "Combined Military Data 2022")
+
+
+military_data_2022 <- military_data_2022  %>% mutate(`2022 Share Govt Spending` = recode(`2022 Share Govt Spending`, 'xxx' = '0')) %>% mutate( `2022 Per Capita`=recode(`2022 Per Capita`, 'xxx' = '0')) %>% mutate(`2022 Share of GDP` = recode(`2022 Share of GDP`, 'xxx' = '0'))
+
+
+military_data_2022<- military_data_2022 %>% mutate(`2022 Share Govt Spending`=as.numeric(`2022 Share Govt Spending`)) %>%
+  mutate(`2022 Per Capita` = as.numeric(`2022 Per Capita`)) %>% mutate(`2022 Share of GDP`=as.numeric(`2022 Share of GDP`))
+
+
+military_data_2022<- military_data_2022 %>% mutate(across(where(is.numeric), round, 6))
+
+
+
+military_data_1991 <- read_xlsx("Military_Expenditure.xlsx", sheet = "Combined Military Data 1991")
+
+
+military_data_1991 <- military_data_1991  %>% mutate(`1991 Share of Govt Spending` = recode(`1991 Share of Govt Spending`, 'xxx' = '0')) %>% mutate( `1991 Total Spending`=recode(`1991 Total Spending`, 'xxx' = '0')) %>% mutate(`1991 Share of GDP` = recode(`1991 Share of GDP`, 'xxx' = '0'))
+
+military_data_1991<- military_data_1991 %>% mutate(`1991 Share of Govt Spending`=as.numeric(`1991 Share of Govt Spending`)) %>%
+  mutate(`1991 Total Spending` = as.numeric(`1991 Total Spending`)) %>% mutate(`1991 Share of GDP`=as.numeric(`1991 Share of GDP`))
+
+military_data_1991<- military_data_1991 %>% mutate(across(where(is.numeric), round, 6))
+
+military_data_1991_no_Kuwait <- subset(military_data_1991, Country != "Kuwait")
+
+
+
+
+military_data_1991_2022 <- read_xlsx("Military_Expenditure.xlsx", sheet = "Combined Military 1991 2022")
+
+
+military_data_1991_2022 <- military_data_1991_2022  %>% mutate(`1991 Share of Govt Spending` = recode(`1991 Share of Govt Spending`, 'xxx' = '0')) %>% mutate(`1991 Share of GDP` = recode(`1991 Share of GDP`, 'xxx' = '0')) %>% mutate(`2022 Share Govt Spending` = recode(`2022 Share Govt Spending`, 'xxx' = '0'))  %>% mutate(`2022 Share of GDP` = recode(`2022 Share of GDP`, 'xxx' = '0'))
+
+
+military_data_1991_2022<- military_data_1991_2022 %>% mutate(`1991 Share of Govt Spending`=as.numeric(`1991 Share of Govt Spending`))  %>% mutate(`1991 Share of GDP`=as.numeric(`1991 Share of GDP`)) %>% mutate(`2022 Share Govt Spending`=as.numeric(`2022 Share Govt Spending`))  %>% mutate(`2022 Share of GDP`=as.numeric(`2022 Share of GDP`))
+
+
+military_data_1991_2022 <- military_data_1991_2022 %>% mutate(across(where(is.numeric), round, 6))
+
+military_data_1991_2022_no_Kuwait <- subset(military_data_1991_2022, Country != "Kuwait")
+
+
+
+
+my_world_map <- map_data("world")
+
+
+
+my_world_map <- my_world_map %>% rename("Country"="region")
+
+my_world_map <- my_world_map %>% mutate(Country = recode(Country, 'USA' = 'United States of America')) %>% mutate(Country = recode(Country
+                                                                                                                                   ,'UK' = 'United Kingdom'))
+
+military_spending_map <-right_join(my_world_map, military_data_2022, by = "Country")
+
+
+
+military_Govt_spending_map_2022 <- military_spending_map %>%
+  filter(`2022 Share Govt Spending` != 0)
+
+military_gdp_map_2022 <- military_spending_map %>% filter(`2022 Share of GDP` != 0)
+
+military_spending_1991_map <-right_join(my_world_map, military_data_1991, by = "Country")
+
+military_spending_1991_map_no_Kuwait <- right_join(my_world_map, military_data_1991_no_Kuwait, by= "Country")
+
+military_spending_1991_map_no_Kuwait <- military_spending_1991_map_no_Kuwait %>% filter(`1991 Share of GDP` != 0)
+
+
+military_Govt_spending_1991_map <- military_spending_1991_map %>%
+  filter(`1991 Share of Govt Spending` != 0)
+
+military_gdp_spending_1991_map <- military_spending_1991_map %>% filter(`1991 Share of GDP` != 0)
+
+
+military_spending_1991_2022_map <- right_join(my_world_map, military_data_1991_2022, by = "Country")
+
+
+military_spending_1991_2022_map_no_Kuwait <- right_join(my_world_map,military_data_1991_2022_no_Kuwait, by ="Country")
+
+```
+
+Page 1
+=============================================================
+
+
+Column
+-----------------------------------------------------------------------
+
+### Chart 1 (Missing Countries have missing data)
+
+
+
+```{r}
+
+ggplotly(
+ggplot(data=military_Govt_spending_1991_map, mapping= aes (x=long, y=lat, group=group,label=Country,))+
+  geom_polygon(aes( fill= `1991 Share of Govt Spending`))+
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = .1 , labels=scales::percent_format(accuracy = .01),breaks = c(.05, .1, .3))+
+  theme_dark()+
+  labs(x="", y="", title= "Percentage of Govt Spending on Military in 1991")+
+    theme(axis.text.x=element_blank(),axis.text.y = element_blank(),axis.line = element_blank(),
+        axis.ticks=element_blank()))
+```
+
+Page 2
+=============================================================
+Column
+-----------------------------------------------------------------------
+
+### Chart 2 (Missing Countries have missing data & Kuwait too large Outlier to show)
+
+
+
+```{r}
+
+
+
+
+ggplotly(
+ggplot(data=military_spending_1991_map_no_Kuwait, mapping= aes (x=long, y=lat, group=group,label=Country,))+
+  geom_polygon(aes( fill= `1991 Share of GDP`))+
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = .03, labels=scales::percent_format(accuracy = .01), breaks =c(.01, .03,.1))+
+  theme_dark()+
+  labs(x="", y="", title= "Percentage of GDP Spent on Military in 1991")+
+    theme(axis.text.x=element_blank(),axis.text.y = element_blank(),axis.line = element_blank(),
+        axis.ticks=element_blank()))
+```
+
+Page 3
+================================================================
+
+Input {.sidebar}
+-----------------------------------------------------------------------------
+
+### User Input
+
+```{r}
+
+  radioButtons(
+            inputId = "Region",
+            label = "Which region do you want to display?",
+            choices = c("Central America and the Caribbean","Central Europe", "East Asia", "Eastern Europe", "Middle East", "North Africa",
+                        "North America", "Oceania", "South America", "South Asia", "South East Asia", "sub-Saharan Africa", 
+                        "Western Europe"),
+        )
+
+```
+
+Column
+----------------------------------------------------------------------
+
+### Chart 3
+
+
+```{r}
+renderPlotly({
+      
+        Region_Gov_Spending_1991   <- filter(military_data_1991, Region %in% input$Region)
+        
+        ggplotly(ggplot(dat= Region_Gov_Spending_1991, aes(y=`1991 Share of Govt Spending`, x= `1991 Share of GDP`,fill=Country))+
+          geom_point(size=3)+
+          scale_size_continuous(guide = "none")+
+            scale_y_continuous(labels=scales::percent_format(accuracy = .01))+
+            scale_x_continuous(labels=scales::percent_format(accuracy = .01))+
+          theme_dark()+
+          theme(legend.text = element_text(size=8))+
+          theme(legend.title = element_text(size=8))+
+          labs(x="Percentage of GDP Spent on Military",  y= 'Percentage Govt Spending on Military', 
+               title = "GDP and Gov Spending on Military by Region in 1991")+
+          theme(legend.position="bottom"))
+})
+        
+```
+
+Page 4
+=============================================================================
+
+Column
+-------------------------------------------------------------------------------------
+
+### Chart 4 (Missing Countries have missing data)
+
+
+
+```{r}
+
+
+
+ggplotly(
+ggplot(data=military_Govt_spending_map_2022, mapping= aes (x=long, y=lat, group=group,label=Country,))+
+  geom_polygon(aes( fill= `2022 Share Govt Spending`))+
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = .06, labels=scales::percent_format(accuracy = .01), breaks = c(.01, .06, .1))+
+  theme_dark()+
+  labs(x="", y="", title= "Percentage of Govt Spending on Military in 2022")+
+    theme(axis.text.x=element_blank(),axis.text.y = element_blank(),axis.line = element_blank(),
+        axis.ticks=element_blank()))
+```
+
+Page 5
+=============================================================================
+
+Column
+-------------------------------------------------------------------------------------
+
+### Chart 5 (Missing Countries have missing data & Ukraine too large Outlier to show)
+
+
+
+```{r}
+
+military_gdp_map_2022_no_ukraine <- subset(military_gdp_map_2022, Country != "Ukraine")
+
+ggplotly(
+ggplot(data=military_gdp_map_2022_no_ukraine, mapping= aes (x=long, y=lat, group=group,label=Country,))+
+  geom_polygon(aes( fill= `2022 Share of GDP`))+
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = .02, labels=scales::percent_format(accuracy = .01), breaks = c(.01, .02, .05))+
+  theme_dark()+
+  labs(x="", y="", title= "Percentage of GDP Spent on Military in 2022")+
+    theme(axis.text.x=element_blank(),axis.text.y = element_blank(),axis.line = element_blank(),
+        axis.ticks=element_blank()))
+
+
+```
+
+Page 6 {data-orientation=columns}
+=============================================================================
+
+Input{.sidebar}
+-------------------------------------------------------------------------------------
+
+### User Input 2
+
+```{r}
+
+  radioButtons(
+            inputId = "Region2",
+            label = "Which region do you want to display?",
+            choices = c("Central America and the Caribbean","Central Europe", "East Asia", "Eastern Europe", "Middle East", "North Africa",
+                        "North America", "Oceania", "South America", "South Asia", "South East Asia", "sub-Saharan Africa", 
+                        "Western Europe"),
+        )
+
+```
+
+Column
+------------------------------------------------------------------------------------------------
+
+###Chart 6
+
+
+```{r}
+
+renderPlotly({
+  
+        Region_Gov_Spending   <- filter(military_data_2022, Region == input$Region2)
+        
+        ggplotly(ggplot(dat= Region_Gov_Spending, aes(y=`2022 Share Govt Spending`, x= `2022 Share of GDP`,fill=Country))+
+          geom_point(size=3)+
+          scale_size_continuous(guide = "none")+
+            scale_y_continuous(labels=scales::percent_format(accuracy = .01))+
+            scale_x_continuous(labels=scales::percent_format(accuracy = .01))+
+          theme_dark()+
+          theme(legend.text = element_text(size=8))+
+          theme(legend.title = element_text(size=8))+
+          labs(x="Percentage of GDP Spent on Military",  y= 'Percentage Govt Spending on Military', 
+               title = "GDP and Gov Spending on Military by Region in 2022")+
+          theme(legend.position="bottom"))
+})
+```
+
+Page 7 {data-orientation=columns}
+=======================================================
+
+Column
+---------------------------------------------------------------------------
+
+### Chart 7 (Missing Countries have missing data)
+
+
+
+```{r}
+
+
+military_spending_difference <- military_spending_1991_2022_map %>%
+  filter(`1991 Share of Govt Spending` != 0 & `2022 Share Govt Spending` != 0) %>%
+  mutate(Difference = `2022 Share Govt Spending` - `1991 Share of Govt Spending`)
+
+
+ggplotly(
+ggplot(data=military_spending_difference, mapping= aes (x=long, y=lat, group=group,label=Country,))+
+  geom_polygon(aes( fill= Difference))+
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = -.04 , labels=scales::percent_format(accuracy = .01), breaks = c(-.2,-.04,.01))+
+  theme_dark()+
+  labs(x="", y="", title= "Change in Share of Govt Spending on Military from 1991 to 2022", fill = "Change from 1991 to 2022")+
+    theme(axis.text.x=element_blank(),axis.text.y = element_blank(),axis.line = element_blank(),
+        axis.ticks=element_blank()))
+
+
+
+
+
+
+
+```
+
+
+Page 8 {data-orientation=columns}
+====================================================================
+
+Column
+--------------------------------------------------------------------------
+
+### Chart 8 (Missing Countries have missing data & Kuwait too large Outlier to show)
+
+
+
+
+```{r}
+military_gdp_difference <- military_spending_1991_2022_map %>%
+  filter(`1991 Share of GDP` != 0 & `2022 Share of GDP` != 0) %>%
+  mutate(Difference = `2022 Share of GDP` - `1991 Share of GDP`) %>% filter(Country != "Kuwait")
+
+
+
+ggplotly(
+ggplot(data=military_gdp_difference, mapping= aes (x=long, y=lat, group=group,label=Country,))+
+  geom_polygon(aes( fill= Difference))+
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0 , labels=scales::percent_format(accuracy = .01), breaks = c(-.06, 0, .03))+
+  theme_dark()+
+  labs(x="", y="", title= "Change in Share of GDP Spending on Military from 1991 to 2022", fill = "Change from 1991 to 2022")+
+    theme(axis.text.x=element_blank(),axis.text.y = element_blank(),axis.line = element_blank(),
+        axis.ticks=element_blank()))
+
+
+
+
+
+
+```
+
+
+Page 9 {data-orientation=columns}
+=============================================================================
+
+Column
+--------------------------------------------------------------------------------
+
+### Chart 9
+
+
+
+
+```{r}
+
+
+top_5_countries_spending_1991 <- military_data_1991 %>%
+  arrange(desc(`1991 Share of Govt Spending` )) %>%
+  slice_head(n = 5) %>% select(`1991 Share of Govt Spending`, Country)
+
+avg_1991_share_spending <- military_data_1991 %>% filter(`1991 Share of Govt Spending` !=0) 
+
+avg_1991_share_spending <- mean(avg_1991_share_spending$`1991 Share of Govt Spending`)
+
+
+
+
+
+ggplotly(
+  ggplot(top_5_countries_spending_1991) +
+    geom_bar(aes(x = Country, 
+                 y = `1991 Share of Govt Spending`), 
+             stat = "identity", fill = "blue", alpha = 1, width = 0.5) +
+    geom_hline(aes(yintercept = avg_1991_share_spending, color = "Average (11.5%)"), 
+               linetype = "dashed", linewidth = 1) +
+    scale_y_continuous(labels = scales::percent_format(scale = 100)) +
+    scale_color_manual(name = "Mean Share Govt Spending", values = c("red")) +
+    labs(title = "Top 5 Countries' Share of Government Military Spending in 1991",
+         x = "Country",
+         y = "1991 Share of Govt Spending") +
+    theme_dark(),
+  
+  tooltip = c("x", "y")
+)
+```
+
+
+
+
+Page 10 {data-orientation=columns}
+=============================================================================
+
+Column
+--------------------------------------------------------------------------------
+
+### Chart 10
+
+
+
+```{r}
+top_5_countries_gdp_1991 <- military_data_1991 %>%
+  arrange(desc(`1991 Share of GDP` )) %>%
+  slice_head(n = 5) %>% select(`1991 Share of GDP`, Country)
+
+
+avg_1991_share_gdp <- military_data_1991 %>% filter(`1991 Share of GDP` !=0) 
+
+avg_1991_share_gdp <- mean(avg_1991_share_gdp$`1991 Share of GDP`)
+
+
+ggplotly(
+  ggplot(top_5_countries_gdp_1991) +
+    geom_bar(aes(x = Country, 
+                 y = `1991 Share of GDP`), 
+             stat = "identity", fill = "blue", alpha = 1, width = 0.5) +
+    geom_hline(aes(yintercept = avg_1991_share_gdp, color = "Average (3.3%)"), 
+               linetype = "dashed", linewidth = 1) +
+    scale_y_continuous(labels = scales::percent_format(scale = 100)) +
+    scale_color_manual(name = "Mean Share GDP Spending", values = c("red")) +
+    labs(title = "Top 5 Countries' Share of GDP Military Spending in 1991",
+         x = "Country",
+         y = "1991 Share of GDP Spending") +
+    theme_dark(),
+  tooltip = c("x", "y")
+)
+
+```
+
+
+
+
+Page 11 {data-orientation=columns}
+=============================================================================
+
+Column
+--------------------------------------------------------------------------------
+
+### Chart 11
+
+
+
+```{r}
+top_5_countries_spending_2022 <- military_data_2022 %>%
+  arrange(desc(`2022 Share Govt Spending`)) %>%
+  slice_head(n = 5) %>% select(`2022 Share Govt Spending`, Country)
+
+avg_2022_share_spending <- military_data_2022 %>% filter(`2022 Share Govt Spending` !=0) 
+
+avg_2022_share_spending <- mean(avg_2022_share_spending$`2022 Share Govt Spending`)
+
+
+ggplotly(
+  ggplot(top_5_countries_spending_2022) +
+    geom_bar(aes(x = Country, 
+                 y = `2022 Share Govt Spending`), 
+             stat = "identity", fill = "blue", alpha = 1, width = 0.5) +
+    geom_hline(aes(yintercept = avg_2022_share_spending, color = "Average (6.4%)"), 
+               linetype = "dashed", linewidth = 1) +
+    scale_y_continuous(labels = scales::percent_format(scale = 100)) +
+    scale_color_manual(name = "Mean Share Govt Spending", values = c("red")) +
+    labs(title = "Top 5 Countries' Share of Govt Military Spending in 2022",
+         x = "Country",
+         y = "2022 Share of Govt Spending") +
+    theme_dark(),
+  tooltip = c("x", "y")
+)
+
+
+
+
+```
+
+
+
+Page 12 {data-orientation=columns}
+=============================================================================
+
+Column
+--------------------------------------------------------------------------------
+
+### Chart 12
+
+
+
+```{r}
+
+top_5_countries_gdp_2022 <- military_data_2022 %>%
+  arrange(desc(`2022 Share of GDP`)) %>%
+  slice_head(n = 5) %>% select(`2022 Share of GDP`, Country)
+
+avg_2022_share_gdp <- military_data_2022 %>% filter(`2022 Share of GDP` !=0) 
+
+avg_2022_share_gdp <- mean(avg_2022_share_gdp$`2022 Share of GDP`)
+
+
+ggplotly(
+  ggplot(top_5_countries_gdp_2022) +
+    geom_bar(aes(x = Country, 
+                 y = `2022 Share of GDP`), 
+             stat = "identity", fill = "blue", alpha = 1, width = 0.5) +
+    geom_hline(aes(yintercept = avg_2022_share_gdp, color = "Average (1.9%)"), 
+               linetype = "dashed", linewidth = 1) +
+    scale_y_continuous(labels = scales::percent_format(scale = 100)) + 
+    scale_color_manual(name = "Mean Share GDP Spending", values = c("red")) +
+    labs(title = "Top 5 Countries' Share of GDP Military Spending in 2022",
+         x = "Country",
+         y = "2022 Share of GDP Spending") +
+    theme_dark(),
+  tooltip = c("x", "y")
+)
+
+
+
+
+```
+
