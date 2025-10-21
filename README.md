@@ -1,1 +1,1 @@
-# Data Portfolio: This portfolio showcases some of my final projects, dashboards, papers, visualizations, and other relevant work. I divided the projects by the courses I took in graduate school, as most of my data analysis/science work stems from my coursework.
+# Data Portfolio: This portfolio showcases graduate-level projects, dashboards, papers, and visualizations, organized by course to highlight applied data analysis and modeling skills.
